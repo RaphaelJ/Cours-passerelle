@@ -104,6 +104,12 @@ class Tuple2<T, U> {
 // formules, d'éviter tout effet de bord, de rendre le code thread-safe (sans le
 // moindre verrou) et de simplifier considérablement la programmation des 
 // simplifications.
+// Avec des noeuds mutables, il aurait fallu recopier l'arbre en entier de la
+// seconde formule lors des appels à add(), sub() ... pour éviter à la méthode
+// eval() d'avoir une portée hors de la formule à laquelle elle s'applique, ce
+// qui aurait à première vue lancé l'opération de copie dans une boucle infinie
+// lors des cas récursifs (f.sub(f) par exemple, je n'ai pas trouvé de méthode
+// simple pour gérer ce cas en utilisant des noeuds mutables).
 abstract class Operation {
     public abstract Operation simplify(boolean recursive) throws Exception;
     public abstract Operation eval(String variable, int value);
