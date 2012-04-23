@@ -1,6 +1,4 @@
 // Raphael Javaux - 2012
-// FIXME: Effectuer la simplification au moment de l'affichage et non au moment
-//        du binding des variables.
 
 import java.text.ParseException;
 import java.util.*;
@@ -19,44 +17,49 @@ public class Formula implements Cloneable {
         System.out.println(f.toString());
         f.eval("p", 4);
         System.out.println(f.toString());
-
-
-//         Formula f = new Formula("add p q");
-//         f.eval("p", 2);
-//         f.eval("q", 5);
-//         System.out.println(f.toString());
     }
     
-    public Formula(String expr) throws ParseException
+    public Formula(String expr) throws Exception 
     {
         this._syntaxTree = Operation.parse(expr);
     }
     
     public Operation syntaxTree() { return this._syntaxTree; }
     
-    public void eval(String variable, int value) throws Exception 
+    // Puisque les opérations de manipulation de l'arbre syntaxique sont 
+    // implicitement thread-safe, car immuables (voir commentaire plus bas),
+    // il suffit de déclarer quelques verrous avec synchronized sur l'unique 
+    // partie mutable du travail (_syntaxTree) pour obtenir une interface 
+    // complètement concurrente !
+    
+    public synchronized void eval(String variable, int value) throws Exception 
     {
         this._syntaxTree = this._syntaxTree.eval(variable, value);
+        this._syntaxTree = this._syntaxTree.simplify(true);
     }
     
-    public void add(Formula g)
+    public synchronized void add(Formula g) throws Exception 
     {
         this._syntaxTree = new Addition(this._syntaxTree, g.syntaxTree());
+        this._syntaxTree = this._syntaxTree.simplify(false);
     }
     
-    public void sub(Formula g)
+    public synchronized void sub(Formula g) throws Exception 
     {
         this._syntaxTree = new Subtraction(this._syntaxTree, g.syntaxTree());
+        this._syntaxTree = this._syntaxTree.simplify(false);
     }
     
-    public void mul(Formula g)
+    public synchronized void mul(Formula g) throws Exception 
     {
         this._syntaxTree = new Multiplication(this._syntaxTree, g.syntaxTree());
+        this._syntaxTree = this._syntaxTree.simplify(false);
     }
 
-    public void div(Formula g)
+    public synchronized void div(Formula g) throws Exception 
     {
         this._syntaxTree = new Division(this._syntaxTree, g.syntaxTree());
+        this._syntaxTree = this._syntaxTree.simplify(false);
     }
     
     public String toString() { return this._syntaxTree.toString(); }
@@ -83,25 +86,34 @@ class Tuple2<T, U> {
 }
 
 // Classe abstraite dont héritent tous les noeuds de l'arbre syntaxique.
+// simplify() tente de retourner une simplification de l'opération. Dans le
+// cas des méthodes add(), sub() ... de la classe Formula, il n'est pas
+// nécessaire de simplifier l'ensemble de l'arbre syntaxique mais uniquement la
+// racine (en utilisant le paramètre recursive de la méthode).
 // eval() retourne l'opération une fois que la définition de la variable a été 
 // appliquée. eval() doit effectuer la propagation de la variable à ses noeuds
-// enfants, récursivement.
-// eval() ne doit en aucun cas modifier le neoud auquel elle est appliquée mais
-// retourner le nouvel état du noeud (éventuellement le noeud lui-même s'il n'a
-// pas été modifié). Toutes les classes d'opération sont des types immuables 
-// (càd que tous leurs champs sont final) pour garantir la non-modification des
-// champs. Ceci engendre une légère surcharge au niveau du garbage collector (
-// à cause de la copie de toutes les données d'un noeud lors de la moindre 
-// simplification d'un champ) mais permet de partager un même arbre syntaxique 
-// entre plusieurs formules et d'éviter tout effet de bord (tout en simplifiant
-// grandement la programmation des simplifications).
+// enfants, récursivement. eval() n'effectue pas de simplification.
+// simplify() et eval() ne doivent en aucun cas modifier le neoud auquel elles
+// sont appliquées mais retourner le nouvel état du noeud (éventuellement le 
+// noeud lui-même s'il n'a pas été modifié). 
+// Toutes les classes d'opération sont des types immuables (càd que tous leurs 
+// champs sont final) pour garantir la non-modification des champs. Ceci 
+// engendre une légère surcharge au niveau du garbage collector (à cause de la 
+// copie de toutes les données d'un noeud lors de la moindre simplification d'un 
+// champ) mais permet de partager un même arbre syntaxique entre plusieurs
+// formules, d'éviter tout effet de bord, de rendre le code thread-safe (sans le
+// moindre verrou) et de simplifier considérablement la programmation des 
+// simplifications.
 abstract class Operation {
-    public abstract Operation eval(String variable, int value) throws Exception;
+    public abstract Operation simplify(boolean recursive) throws Exception;
+    public abstract Operation eval(String variable, int value);
     
-    // Retourne une arbre syntaxique, resultat de l'analyse récursive du texte 
+    // Méthodes statiques pour le parsing des formules :
+    
+    // Retourne un arbre syntaxique, resultat de l'analyse récursive du texte 
     // de l'expression. Cette fonction délègue l'analyse à la seconde fonction
-    // parse().
-    public static Operation parse(String expr) throws ParseException
+    // parse(). L'arbre retourné est simplifié avant d'être retourné.
+    public static Operation parse(String expr) throws Exception
     {
         String[] vectExpr = Operation.splitBySpaces(expr);
         Tuple2<Operation, Integer> result = Operation.parse(vectExpr, 0);
@@ -113,10 +125,10 @@ abstract class Operation {
             );
         }
         
-        return result.fst();
+        return result.fst().simplify(true);
     }
     
-    // Retourne une arbre syntaxique, resultat de l'analyse récursive des mots 
+    // Retourne un arbre syntaxique, resultat de l'analyse récursive des mots 
     // de l'expression, ainsi que le nouvel indice du curseur dans l'expression
     // pour le mot suivant.
     public static Tuple2<Operation, Integer> parse(String[] expr, int cursor)
@@ -193,8 +205,8 @@ abstract class Operation {
         return words.toArray(new String[0]);
     }
     
-    // Parse les deux sous-opérations d'un opérateur binaire (add, mul ...)
-    // ainsi que le nouveau curseur.
+    // Parse les deux sous-opérations d'un opérateur binaire (add, mul ...).
+    // Retourne les deux sous-opérations ainsi que le nouveau curseur.
     private static Tuple2<Operation[], Integer> parseBinaryOp(
         String[] expr, int cursor
     ) throws ParseException
@@ -218,10 +230,12 @@ class Constant extends Operation {
     
     public int value() { return this._value; }
     
-    public Operation eval(String variable, int value) throws Exception
-    { 
-        return this; 
+    public Operation simplify(boolean recursive) throws Exception
+    {
+        return this;
     }
+    
+    public Operation eval(String variable, int value) { return this; }
     
     public String toString() { return Integer.toString(this._value); }
 }
@@ -233,7 +247,12 @@ class Variable extends Operation {
     
     public Variable(String name) { this._name = name; }
     
-    public Operation eval(String variable, int value) throws Exception
+    public Operation simplify(boolean recursive) throws Exception
+    {
+        return this;
+    }
+    
+    public Operation eval(String variable, int value)
     {    
         if (this._name.equals(variable)) {
             return new Constant(value);
@@ -273,10 +292,17 @@ abstract class BinaryOp extends Operation {
 class Addition extends BinaryOp {
     public Addition(Operation op1, Operation op2) { super(op1, op2); }
     
-    public Operation eval(String variable, int value) throws Exception
+    public Operation simplify(boolean recursive) throws Exception
     {
-        Operation op1 = this._op1.eval(variable, value);
-        Operation op2 = this._op2.eval(variable, value);
+        Operation op1;
+        Operation op2;
+        if (recursive) {
+            op1 = this._op1.simplify(true);
+            op2 = this._op2.simplify(true);
+        } else {
+            op1 = this._op1;
+            op2 = this._op2;
+        }
         
         if (op1 instanceof Constant) {
             int op1_val = ((Constant) op1).value();
@@ -294,6 +320,13 @@ class Addition extends BinaryOp {
         }
     }
     
+    public Operation eval(String variable, int value)
+    {
+        return new Addition(
+            this._op1.eval(variable, value), this._op2.eval(variable, value)
+        );
+    }
+    
     public String opName() { return "add"; }
 }
 
@@ -301,10 +334,17 @@ class Addition extends BinaryOp {
 class Subtraction extends BinaryOp {
     public Subtraction(Operation op1, Operation op2) { super(op1, op2); }
     
-    public Operation eval(String variable, int value) throws Exception
+    public Operation simplify(boolean recursive) throws Exception
     {
-        Operation op1 = this._op1.eval(variable, value);
-        Operation op2 = this._op2.eval(variable, value);
+        Operation op1;
+        Operation op2;
+        if (recursive) {
+            op1 = this._op1.simplify(true);
+            op2 = this._op2.simplify(true);
+        } else {
+            op1 = this._op1;
+            op2 = this._op2;
+        }
         
         if (op1 instanceof Constant && op2 instanceof Constant) {
             // Les deux opérandes sont constantes, évaluation complète
@@ -319,6 +359,13 @@ class Subtraction extends BinaryOp {
         }
     }
     
+    public Operation eval(String variable, int value)
+    {
+        return new Subtraction(
+            this._op1.eval(variable, value), this._op2.eval(variable, value)
+        );
+    }
+    
     public String opName() { return "sub"; }
 }
 
@@ -327,10 +374,17 @@ class Subtraction extends BinaryOp {
 class Multiplication extends BinaryOp {
     public Multiplication(Operation op1, Operation op2) { super(op1, op2); }
     
-    public Operation eval(String variable, int value) throws Exception
+    public Operation simplify(boolean recursive) throws Exception
     {
-        Operation op1 = this._op1.eval(variable, value);
-        Operation op2 = this._op2.eval(variable, value);
+        Operation op1;
+        Operation op2;
+        if (recursive) {
+            op1 = this._op1.simplify(true);
+            op2 = this._op2.simplify(true);
+        } else {
+            op1 = this._op1;
+            op2 = this._op2;
+        }
         
         if (op1 instanceof Constant) {
             int op1_val = ((Constant) op1).value();
@@ -355,6 +409,13 @@ class Multiplication extends BinaryOp {
         }
     }
     
+    public Operation eval(String variable, int value)
+    {
+        return new Multiplication(
+            this._op1.eval(variable, value), this._op2.eval(variable, value)
+        );
+    }
+    
     public String opName() { return "mul"; }
 }
 
@@ -362,10 +423,17 @@ class Multiplication extends BinaryOp {
 class Division extends BinaryOp {
     public Division(Operation op1, Operation op2) { super(op1, op2); }
     
-    public Operation eval(String variable, int value) throws Exception
+    public Operation simplify(boolean recursive) throws Exception
     {
-        Operation op1 = this._op1.eval(variable, value);
-        Operation op2 = this._op2.eval(variable, value);
+        Operation op1;
+        Operation op2;
+        if (recursive) {
+            op1 = this._op1.simplify(true);
+            op2 = this._op2.simplify(true);
+        } else {
+            op1 = this._op1;
+            op2 = this._op2;
+        }
         
         if (op1 instanceof Constant) {
             int op1_val = ((Constant) op1).value();
@@ -389,6 +457,13 @@ class Division extends BinaryOp {
         } else {
             return new Division(op1, op2);
         }
+    }
+    
+    public Operation eval(String variable, int value)
+    {
+        return new Division(
+            this._op1.eval(variable, value), this._op2.eval(variable, value)
+        );
     }
     
     public String opName() { return "div"; }
