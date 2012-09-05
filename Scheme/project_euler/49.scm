@@ -1,0 +1,18 @@
+(declare (uses euler-utils))
+
+(define (problem-49 incr)
+    (let* ((too-small? (lambda (p) (< p 1000)))
+           (too-large? (lambda (p) (> p 9999)))
+           (primes-list (primes 9999))
+           (valid-primes (drop-while too-small? primes-list))
+           (new-prime? (lambda (p) (prime? p primes-list)))
+           (respects-property? (lambda (p)
+                (let* ((p-digits (digits p))
+                       (p2 (+ p  incr)) (p2-digits (digits p2))
+                       (p3 (+ p2 incr)) (p3-digits (digits p3)))
+                 (and (permutation? p-digits p2-digits) (prime? p2 primes-list)
+                      (permutation? p-digits p3-digits) (prime? p3 primes-list)
+                 )))))
+     (filter respects-property? primes-list)))
+    
+(print (problem-49 3330))
