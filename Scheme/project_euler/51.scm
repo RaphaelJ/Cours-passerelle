@@ -3,7 +3,10 @@
 (define (problem-51 n-primes)
     (define primes-list (primes 200000))
 
-    (define (transforms-go ds d-to-replace)
+    (define (transforms-go ds d-to-replace) 
+        ; Returns a function which replace the 
+        (lambda (x) 
+            (map (lambda (d) (if (= d d-to-replace) x d))) ds))
         
         (if (null? ds) 
             (cons fct-prec acc)
