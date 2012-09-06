@@ -57,6 +57,7 @@
                   (greater (filter (lambda (x) (>= x pivot)) (cdr xs))))
             
             (append (qsort lesser) (cons pivot (qsort greater)))))))
+
 ; Returns the unique elements from a list.
 (define (nub xs)
     (define (go-nub current ixs)
@@ -102,6 +103,14 @@
 ; Returns true if xs is a permutation of ys
 (define (permutation? xs ys)
     (list-eq? (qsort xs) (qsort ys)))
+    
+; Returns a list from a tree
+(define (flat xs)
+    (cond ((null? xs) '())
+          ((list? (car xs)) 
+           (append (flat (car xs)) (flat (cdr xs))))
+          (else 
+           (cons (car xs) (flat (cdr xs))))))
 
 ;;
 ;; Numbers utils
@@ -121,12 +130,23 @@
             (go-factorial (- i 1) (* acc i))))
    
     (go-factorial x 1))
+    
+(define (fibonacci x)
+    (define (go-fibonacci i a b) ; a = fib(i-2), b = fib(i-1)
+        (if (> i x)
+            b
+            (go-fibonacci (+ i 1) b (+ a b))))
+
+    (cond ((< x 0) (error "x must be a non-negative integer"))
+          ((= x 0) 0)
+          ((= x 0) 1)
+          (else (go-fibonacci 2 0 1))))
 
 ;;
 ;; Factorization utils
 ;;
 
-; Returns the list of all factors of x (without 1) and their reciprocal.
+; Returns the list of all factors of x (w/o 1) and their reciprocal.
 (define (factors x)
     (define root-x (floor (sqrt x)))
     
