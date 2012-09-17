@@ -79,21 +79,23 @@
           ((null? ys) (null? xs))
           (else
            (and (eq? (car xs) (car ys)) (list-eq? (cdr xs) (cdr ys))))))
-         
+
+; Inserts x before each element of xs and add them to acc
+(define (insert-all x xs acc)
+    (print " - " x " - " xs " - " acc)
+    (if (null? xs)
+        acc
+        (insert-all x (cdr xs) (cons (cons x (car xs)) 
+                                     acc))))
+
 ; Retuns all possible permutations of xs
 (define (permutations xs)
-    (define (permute-with y permuts acc)
-        (if (null? permuts)
-            acc
-            (permute-with y (cdr permuts) (cons (cons y (car permuts))
-                                                acc))))
-
     (define (go-permutations ys zs acc)
         (if (null? ys)
             acc
             (let* ((y (car ys))
                    (inner-permuts (permutations (append (cdr ys) zs)))
-                   (new-acc (permute-with y inner-permuts acc)))
+                   (new-acc (insert-all y inner-permuts acc)))
              (go-permutations (cdr ys) (cons y zs) new-acc))))
          
     (cond ((null? xs) '())
@@ -103,6 +105,20 @@
 ; Returns true if xs is a permutation of ys
 (define (permutation? xs ys)
     (list-eq? (qsort xs) (qsort ys)))
+    
+; Retuns a list of all partitions of xs
+(define (partitions xs)
+    (print " " xs)
+    (define (go ys zs acc)
+        (if (null? ys)
+            acc
+            (let ((y (car ys))
+                  (new-ys (cdr ys)))
+             
+             (go new-ys (cons y zs) 
+                 (insert-all (list y) (partitions (append new-ys zs)) acc)))))
+    
+    (go xs '() (list (list (list xs)))))
     
 ; Returns a list from a tree
 (define (flat xs)
