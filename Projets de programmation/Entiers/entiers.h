@@ -10,9 +10,11 @@
 #include "chiffres.h"
 
 /** Defini un noeud de la liste utilisee pour stocker les entiers signes.
+ * Les groupes de 4 chiffres les plus significatifs sont places sur les premiers 
+ * noeuds du nombre.
  */
 typedef struct EntierNoeud_t {
-   unsigned long int valeur;
+   int valeur;
    struct EntierNoeud_t *suivant;
 } EntierNoeud;
 
@@ -23,5 +25,8 @@ typedef struct Entier_t {
    enum { NEGATIF, POSITIF } signe;
    EntierNoeud *debut;
 } Entier;
+
+Entier creerEntier(char* chaine);
+void afficherEntier(Entier entier);
 
 #endif

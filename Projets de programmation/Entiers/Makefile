@@ -1,6 +1,6 @@
-EXEC = entiers
+EXEC = main
 
-CC = gcc
+CC = clang
 CFLAGS  = --std=c99 --pedantic -Wall -W -Wmissing-prototypes 
 LDFLAGS = 
 

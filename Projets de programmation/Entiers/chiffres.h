@@ -6,7 +6,8 @@
 
 #include <assert.h>
 
-int estChiffre(const char caract);
-int chiffreVal(const char caract);
+int estChiffre(char caract);
+int chiffreVal(char caract);
+char chiffreCaract(int val);
 
 #endif
