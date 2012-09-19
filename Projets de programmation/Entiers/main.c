@@ -5,8 +5,9 @@
 
 int main(void)
 {
-   afficherEntier(creerEntier("0"));
-   afficherEntier(creerEntier("4325"));
-   afficherEntier(creerEntier("4322193"));
-   afficherEntier(creerEntier("38200107673"));
+//    afficherEntier(creerEntier("0"));
+   creerEntier("4325");
+//    afficherEntier(creerEntier("4325"));
+//    afficherEntier(creerEntier("4322193"));
+//    afficherEntier(creerEntier("38200107673"));
 }

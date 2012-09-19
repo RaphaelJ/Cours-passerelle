@@ -22,8 +22,6 @@ Entier creerEntier(char* chaine)
       entier.signe = POSITIF;
    }
 
-   int n = strlen(chaine);
-
    if (n == 1 && chaine[0] == '0') // Codage de 0
       return entier;
 
@@ -37,6 +35,7 @@ Entier creerEntier(char* chaine)
       noeud->valeur = 0;
       noeud->suivant = entier.debut;
 
+ 
       /* Nombre de chiffres du groupe.
        * Ne lit pas 4 chiffres pour le premier groupe du nombre si le nombre 
        * total de chiffres n'est pas un multiple de 4. */
