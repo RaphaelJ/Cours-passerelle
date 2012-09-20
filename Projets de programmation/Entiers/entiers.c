@@ -1,11 +1,27 @@
+#include <string.h>
+
 #include "entiers.h"
 
-/** Accepte une chaine de caracteres en entree et retourne l'entier en precision
- * variable correspondant.
- * @pre Une chaine doit etre composee d'un ou plusieurs caracteres numeriques et
- *      peut debuter avec le caractere "-".
- * @post La representation de l'entier sous une forme a precision variable.
+#include "chiffres.h"
+
+const Signe POSITIF = +1;
+const Signe NEGATIF = -1;
+
+/** Affiche le chiffre a l'ecran. N'affiche pas le chiffre s'il est nul et que
+ * premier vaut une valeur non nulle (cas des premiers zeros du nombre).
+ * @pre Premier vaut une valeur non nulle dans le cas du premier chiffre du
+ *      nombre. Chiffre est dans [0; 9].
+ * @post Premier a une valeur nulle si un nombre a ete affiche ou s'il etait 
+ *       deja nul.
  */
+static void __afficherChiffre(bool *premier, int chiffre);
+
+/** Recurse sur les noeuds de l'entier pour afficher la representation entiere
+ * du nombre.
+ * @pre Un noeud d'un entier a precision variable valide.
+ */
+static void __afficherEntierRec(EntierNoeud noeud);
+
 Entier creerEntier(char* chaine)
 {
    Entier entier;
@@ -77,21 +93,23 @@ Entier creerEntier(char* chaine)
    return entier;
 }
 
-/** Alloue un nouveau noeud d'un entier a precision variable.
- * @pre La valeur entiere du noeud et un pointeur vers le noeud suivant.
- * @post Un pointeur vers le nouveau noeud. Une assertion est declenchee si le
- *       noeud n'a pu etre alloue.
- */
+Entier zero()
+{
+   Entier entier;
+   entier.signe = POSITIF;
+   entier.debut = NULL;
+   return entier;
+}
+
 EntierNoeud *creerNoeud(int valeur, EntierNoeud * suivant)
 {
    EntierNoeud *noeud = (EntierNoeud *) malloc(sizeof (EntierNoeud));
    assert (noeud);
    noeud->valeur = valeur;
    noeud->suivant = suivant;
+   return noeud;
 }
 
-/** @pre Un entier valide dont la memoire allouee doit etre liberee
- */
 void libererEntier(Entier entier)
 {
    EntierNoeud *noeud = entier.debut;
@@ -104,27 +122,16 @@ void libererEntier(Entier entier)
    }
 }
 
-/** @pre Un entier valide.
- *  @post Un entier non nul si l'entier est nul.
- */
-int nul(Entier entier)
+bool nul(Entier entier)
 {
    return entier.debut == NULL;
 }
 
-/** @pre Un entier valide.
- *  @post Un entier non nul si l'entier est positif et non nul.
- */
 int positif(Entier entier)
 {
    return !nul(entier) && entier.signe == POSITIF;
 }
 
-void __afficherEntierRec(EntierNoeud noeud);
-
-/** Affiche un entier a precision variable sous forme decimale.
- * @pre Un entier a precision variable valide.
- */
 void afficherEntier(Entier entier)
 {
    if (nul(entier))
@@ -139,13 +146,7 @@ void afficherEntier(Entier entier)
    }
 }
 
-void __afficherChiffre(bool *premier, int chiffre);
-
-/** Recurse sur les noeuds de l'entier pour afficher la representation entiere
- * du nombre.
- * @pre Un noeud d'un entier a precision variable valide.
- */
-void __afficherEntierRec(EntierNoeud noeud)
+static void __afficherEntierRec(EntierNoeud noeud)
 {
    bool premier;
 
@@ -181,14 +182,7 @@ void __afficherEntierRec(EntierNoeud noeud)
    __afficherChiffre(&premier, chiffre);
 }
 
-/** Affiche le chiffre a l'ecran. N'affiche pas le chiffre s'il est nul et que
- * premier vaut une valeur non nulle (cas des premiers zeros du nombre).
- * @pre Premier vaut une valeur non nulle dans le cas du premier chiffre du
- *      nombre. Chiffre est dans [0; 9].
- * @post Premier a une valeur nulle si un nombre a ete affiche ou s'il etait 
- *       deja nul.
- */
-void __afficherChiffre(bool *premier, int chiffre)
+static void __afficherChiffre(bool *premier, int chiffre)
 {
    if (!(*premier) || chiffre != 0)
    {

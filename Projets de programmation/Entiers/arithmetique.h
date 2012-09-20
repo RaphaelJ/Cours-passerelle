@@ -4,34 +4,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
-#include <stdbool.h>
-
 #include "entiers.h"
 
-/** Defini un noeud de la liste utilisee pour stocker les entiers signes.
- * Les groupes de 4 chiffres les plus significatifs sont places sur les premiers 
- * noeuds du nombre.
+/** @pre Deux entiers a precision variable valides.
+ * @post Un nouvel entier resultat de l'addition des deux nombres.
  */
-typedef struct EntierNoeud_t {
-   int valeur;
-   struct EntierNoeud_t *suivant;
-} EntierNoeud;
+Entier addition(Entier e1, Entier e2);
 
-/** Defini un entier a precision variable, stocke dans une liste d'entiers en
- * base 10 000.
+/** @pre Deux entiers a precision variable valides.
+ * @post Un nouvel entier resultat de la soustraction du premier entier par le
+ *       second entier.
  */
-typedef struct Entier_t {
-   enum { NEGATIF, POSITIF } signe;
-   EntierNoeud *debut;
-} Entier;
+Entier soustraction(Entier e1, Entier e2);
 
-Entier creerEntier(char* chaine);
-void libererEntier(Entier entier);
-
-int nul(Entier entier);
-int positif(Entier entier);
-
-void afficherEntier(Entier entier);
+/** @pre Deux entiers a precision variable valides.
+ * @post Un nouvel entier resultat de la multiplication du premier entier par le
+ *       second entier.
+ */
+Entier multiplication(Entier e1, Entier e2);
 
 #endif
