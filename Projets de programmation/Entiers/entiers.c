@@ -22,22 +22,23 @@ static void __afficherChiffre(bool *premier, int chiffre);
  */
 static void __afficherEntierRec(EntierNoeud noeud);
 
-Entier creerEntier(char* chaine)
+Entier lireEntier(char* chaine)
 {
-   Entier entier;
-   entier.debut = NULL;
+   Signe signe;
 
    if (chaine[0] == '-') // Nombre negatif
    {
       assert (chaine[1] != '\0'); // Impose au moins un chiffre
-      entier.signe = NEGATIF;
+      signe = NEGATIF;
       chaine++; // Ignore le signe a partir de maintenant
    }
    else
    {
       assert (chaine[0] != '\0'); // Impose au moins un chiffre
-      entier.signe = POSITIF;
+      signe = POSITIF;
    }
+
+   Entier entier = creerEntier(signe, NULL);
 
    int n = strlen(chaine);
 
@@ -93,12 +94,15 @@ Entier creerEntier(char* chaine)
    return entier;
 }
 
-Entier zero()
+Entier creerEntier(Signe signe, EntierNoeud *debut)
 {
-   Entier entier;
-   entier.signe = POSITIF;
-   entier.debut = NULL;
-   return entier;
+   assert (signe == POSITIF || signe == NEGATIF);
+   return (Entier) { .signe = signe, .debut = debut };
+}
+
+Entier zero(void)
+{
+   return creerEntier(POSITIF, NULL);
 }
 
 EntierNoeud *creerNoeud(int valeur, EntierNoeud * suivant)

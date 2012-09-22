@@ -22,9 +22,10 @@ static Entier __soustraction(Entier e1, Entier e2);
 /** @pre Deux noeuds de deux entiers a precision variable valides.
  * @post Un nouvel entier resultat de la soustraction du premier nombre par le
  *       second. La multiplication se fait en considerant les deux arguments 
- *       comme etant des nombres positifs. Le signe du resultat est indefini.
+ *       comme etant des nombres positifs. Le signe du resultat est donc
+ *       indefini.
  */
-static Entier __multiplication(const EntierNoeud *e1, const EntierNoeud *e2);
+static Entier __multiplication(Entier e1, Entier e2);
 
 Entier addition(Entier e1, Entier e2)
 {
@@ -36,9 +37,6 @@ Entier addition(Entier e1, Entier e2)
       return __soustraction(e2, e1);
    else // -A + (-B) = -(A + B)
    {
-      e1.signe = POSITIF;
-      e2.signe = POSITIF;
-
       Entier res = __addition(e1.debut, e2.debut);
       res.signe = NEGATIF;
       return res;
@@ -49,14 +47,12 @@ Entier soustraction(Entier e1, Entier e2)
 {
    if (e1.signe == POSITIF && e2.signe == POSITIF) // A - B
       return __soustraction(e1, e2);
-   else if (e1.signe == POSITIF && e2.signe == NEGATIF) // A - (-B) = A + B
+   else if (e1.signe == POSITIF && e2.signe == NEGATIF)  // A - (-B) = A + B
       return __addition(e1.debut, e2.debut);
    else if (e1.signe == NEGATIF && e2.signe == NEGATIF) // -A - (-B) = B - A
       return __soustraction(e2, e1);
    else // -A - B = -(A + B)
    {
-      e1.signe = POSITIF;
-
       Entier res = __addition(e1.debut, e2.debut);
       res.signe = NEGATIF;
       return res;
@@ -65,15 +61,14 @@ Entier soustraction(Entier e1, Entier e2)
 
 Entier multiplication(Entier e1, Entier e2)
 {
-   Entier res = __multiplication(e1.debut, e2.debut);
+   Entier res = __multiplication(e1, e2);
    res.signe = e1.signe * e2.signe;
    return res;
 }
 
 static Entier __addition(const EntierNoeud *e1, const EntierNoeud *e2)
 {
-   Entier res;
-   res.signe = POSITIF;
+   Entier res = creerEntier(POSITIF, NULL);
 
    /* Pointeur vers le pointeur suivant du noeud precedent ou de la tete de
     * liste. */
@@ -114,13 +109,14 @@ static Entier __addition(const EntierNoeud *e1, const EntierNoeud *e2)
 
 static Entier __soustraction(Entier e1, Entier e2)
 {
-   Entier res;
+   e2.signe = e1.signe = POSITIF;
 
+   Signe signeRes;
    /* Soustrait toujours le nombre le plus important au nombre le moins
     * important. */
    if (superieur(e2, e1)) // A - B = - (B - A) si B > A
    {
-      res.signe = NEGATIF;
+      signeRes = NEGATIF;
 
       // Swappe les deux operandes
       Entier tmp = e1;
@@ -128,7 +124,9 @@ static Entier __soustraction(Entier e1, Entier e2)
       e2 = tmp;
    }
    else
-      res.signe = POSITIF;
+      signeRes = POSITIF;
+
+   Entier res = creerEntier(signeRes, NULL);
 
    EntierNoeud *nodeE1 = e1.debut
              , *nodeE2 = e2.debut;
@@ -136,6 +134,7 @@ static Entier __soustraction(Entier e1, Entier e2)
    EntierNoeud **prec = &(res.debut);
 
    int report = 0;
+   bool soustractionNonNulle = false;
    while (nodeE1 != NULL || report != 0)
    {
       EntierNoeud *noeud;
@@ -163,24 +162,37 @@ static Entier __soustraction(Entier e1, Entier e2)
       else
          report = 0;
 
-      noeud = creerNoeud(val1 - val2, NULL);
+      int valRes = val1 - val2;
+      soustractionNonNulle = soustractionNonNulle || valRes != 0;
+
+      noeud = creerNoeud(valRes, NULL);
       *prec = noeud;
       prec = &(noeud->suivant);
    }
 
-   return res;
+   if (soustractionNonNulle)
+      return res;
+   else
+   {
+      libererEntier(res);
+      return zero();
+   }
 }
 
-static Entier __multiplication(const EntierNoeud *e1, const EntierNoeud *e2)
+static Entier __multiplication(Entier e1, Entier e2)
 {
+   if (nul(e1) || nul(e2))
+      return zero();
+
    Entier res = zero();
+   EntierNoeud *nodeE1 = e1.debut
+             , *nodeE2 = e2.debut;
 
    /* Multiplie e1 par tous les noeuds de e2 en additionnant successivement
     * les resultats dans res. */
-   for (int puissance = 0; e2 != NULL; puissance++)
+   for (int puissance = 0; nodeE2 != NULL; puissance++)
    {
-      Entier tmp;
-      tmp.signe = POSITIF;
+      Entier tmp = creerEntier(POSITIF, NULL);
       EntierNoeud **prec = &(tmp.debut);
 
       /* Rajoute un nombre de noeud nuls au resultat temporaire correspondant
@@ -193,16 +205,17 @@ static Entier __multiplication(const EntierNoeud *e1, const EntierNoeud *e2)
       }
 
       int report = 0;
-      int val2 = e2->valeur;
+      int val2 = nodeE2->valeur;
+      const EntierNoeud *e1Iter = nodeE1;
 
       // Multiplie tous les noeuds de e1 par le noeud en cours de e2.
-      while (e1 != NULL || report != 0)
+      while (e1Iter != NULL || report != 0)
       {
          int val1;
-         if (e1 != NULL)
+         if (e1Iter != NULL)
          {
-            val1 = e1->valeur;
-            e1 = e1->suivant;
+            val1 = e1Iter->valeur;
+            e1Iter = e1Iter->suivant;
          }
          else
             val1 = 0;
@@ -221,7 +234,74 @@ static Entier __multiplication(const EntierNoeud *e1, const EntierNoeud *e2)
       libererEntier(precRes);
       libererEntier(tmp);
 
-      e2 = e2->suivant;
+      nodeE2 = nodeE2->suivant;
+   }
+
+   return res;
+}
+
+static Entier __division(Entier numerateur, Entier denominateur)
+{
+   assert (!nul(denominateur));
+
+   if (nul(numerateur) || superieur(denominateur, numerateur))
+      return zero();
+
+   
+
+   if (nul(e1) || nul(e2))
+      return res;
+
+   EntierNoeud *nodeE1 = e1.debut
+             , *nodeE2 = e2.debut;
+
+   /* Multiplie e1 par tous les noeuds de e2 en additionnant successivement
+    * les resultats dans res. */
+   for (int puissance = 0; nodeE2 != NULL; puissance++)
+   {
+      Entier tmp = creerEntier(POSITIF, NULL);
+      EntierNoeud **prec = &(tmp.debut);
+
+      /* Rajoute un nombre de noeud nuls au resultat temporaire correspondant
+       * au numero de la puissance du noeud de e2 en cours de multiplication. */
+      for (int i = 0; i < puissance; i++)
+      {
+         EntierNoeud *noeud = creerNoeud(0, NULL);
+         *prec = noeud;
+         prec = &(noeud->suivant);
+      }
+
+      int report = 0;
+      int val2 = nodeE2->valeur;
+      const EntierNoeud *e1Iter = nodeE1;
+
+      // Multiplie tous les noeuds de e1 par le noeud en cours de e2.
+      while (e1Iter != NULL || report != 0)
+      {
+         int val1;
+         if (e1Iter != NULL)
+         {
+            val1 = e1Iter->valeur;
+            e1Iter = e1Iter->suivant;
+         }
+         else
+            val1 = 0;
+
+         int valRes = val1 * val2 + report;
+         report = valRes / 10000;
+
+         EntierNoeud *noeud = creerNoeud(valRes % 10000, NULL);
+         *prec = noeud;
+         prec = &(noeud->suivant);
+      }
+
+      Entier precRes = res;
+      res = addition(precRes, tmp);
+
+      libererEntier(precRes);
+      libererEntier(tmp);
+
+      nodeE2 = nodeE2->suivant;
    }
 
    return res;

@@ -7,14 +7,16 @@
 
 int main(void)
 {
-   Entier e1 = creerEntier("4322193")
-        , e2 = creerEntier("38200107673")
-        , e3 = creerEntier("-38200107673")
-        , e4 = creerEntier("4325")
-        , e5 = creerEntier("0")
-        , e6 = creerEntier("38200107673")
-        , e7 = creerEntier("4325")
-        , e8 = creerEntier("-4325");
+   Entier e1 = lireEntier("4322193")
+        , e2 = lireEntier("38200107673")
+        , e3 = lireEntier("-38200107673")
+        , e4 = lireEntier("4325")
+        , e5 = lireEntier("0")
+        , e6 = lireEntier("38200107673")
+        , e7 = lireEntier("4325")
+        , e9 = lireEntier("-1")
+        , e10 = lireEntier("1")
+        , e8 = lireEntier("-4325");
 
    Entier r1 = addition(e1, e2)
         , r2 = multiplication(e1, e3)
@@ -35,6 +37,8 @@ int main(void)
    afficherEntier(r8);
    afficherEntier(r9);
    afficherEntier(r10);
+
+   afficherEntier(addition(e9, e10));
 
    libererEntier(e1);
    libererEntier(e2);

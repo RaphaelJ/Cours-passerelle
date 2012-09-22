@@ -35,18 +35,24 @@ typedef struct Entier_t {
  *      peut debuter avec le caractere "-".
  * @post La representation de l'entier sous une forme a precision variable.
  */
-Entier creerEntier(char* chaine);
+Entier lireEntier(char* chaine);
+
+/** Initialise la structure contenant un entier et son signe.
+ * @pre Le signe (POSITIF ou NEGATIF) et le pointeur vers le premier noeud.
+ * @post La representation de l'entier sous une forme a precision variable.
+ */
+Entier creerEntier(Signe signe, EntierNoeud *debut);
 
 /** @post La representation de l'entier 0 sous une forme a precision variable.
  */
-Entier zero();
+Entier zero(void);
 
 /** Alloue un nouveau noeud d'un entier a precision variable.
  * @pre La valeur entiere du noeud et un pointeur vers le noeud suivant.
  * @post Un pointeur vers le nouveau noeud. Une assertion est declenchee si le
  *       noeud n'a pu etre alloue.
  */
-EntierNoeud *creerNoeud(int valeur, EntierNoeud * suivant);
+EntierNoeud *creerNoeud(int valeur, EntierNoeud *suivant);
 
 /** @pre Un entier valide dont la memoire allouee doit etre liberee
  */

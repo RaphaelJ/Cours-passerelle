@@ -2,7 +2,7 @@ EXEC = main
 
 # CC = clang
 CC = gcc
-CFLAGS  = --std=c99 --pedantic -Wall -W -Wmissing-prototypes 
+CFLAGS  = --std=c99 --pedantic -Wall -W -Wmissing-prototypes -O2
 LDFLAGS = 
 
 SRC=$(wildcard *.c)
