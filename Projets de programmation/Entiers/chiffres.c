@@ -5,14 +5,14 @@ bool estChiffre(char caract)
    return caract >= '0' && caract <= '9';
 }
 
-int chiffreVal(char caract)
+unsigned char chiffreVal(char caract)
 {
    assert (estChiffre(caract));
-   return caract - '0';
+   return (unsigned char) (caract - '0');
 }
 
-char chiffreCaract(int val)
+char chiffreCaract(unsigned char val)
 {
-   assert (val >= 0 && val <= 9);
+   assert (/*val >= 0 && */val <= 9);
    return (char) val + '0';
 }

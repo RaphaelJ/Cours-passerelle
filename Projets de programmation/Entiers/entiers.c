@@ -1,5 +1,8 @@
 #include <string.h>
 
+#include <assert.h>
+#include <stdbool.h>
+
 #include "entiers.h"
 
 #include "chiffres.h"
@@ -54,11 +57,11 @@ Entier lireEntier(char* chaine)
    bool premier = true;
    for (int i = 0; i < n; )
    {
-      int valeur = 0;
+      ValeurNoeud valeur = 0;
       // Itere tous les chiffres composants le groupe
       for (int j = 0; j < nbreChiffres; j++)
       {
-         int chiffre = chiffreVal(chaine[i + j]);
+         unsigned char chiffre = chiffreVal(chaine[i + j]);
 
          /* Remarque: je pourrais multiplier chiffre par pow(10, x), mais pow de
           * la stdlib fonctionne sur des flotants, et en fait, j'ai eu flemme de
@@ -105,7 +108,21 @@ Entier zero(void)
    return creerEntier(POSITIF, NULL);
 }
 
-EntierNoeud *creerNoeud(int valeur, EntierNoeud * suivant)
+Entier singleton(int valeur)
+{
+   if (valeur == 0)
+      return zero();
+   else
+   {
+      assert (valeur >= -9999 && valeur <= 9999);
+      Signe signe = valeur < 0 ? NEGATIF : POSITIF;
+      return creerEntier(
+         signe, creerNoeud((ValeurNoeud) (valeur * signe), NULL)
+      );
+   }
+}
+
+EntierNoeud *creerNoeud(ValeurNoeud valeur, EntierNoeud * suivant)
 {
    EntierNoeud *noeud = (EntierNoeud *) malloc(sizeof (EntierNoeud));
    assert (noeud);
@@ -150,6 +167,23 @@ void afficherEntier(Entier entier)
    }
 }
 
+void afficherStructure(Entier entier)
+{
+   if (entier.signe == POSITIF)
+      printf("+ -> ");
+   else
+      printf("- -> ");
+
+   EntierNoeud *noeud = entier.debut;
+   while (noeud != NULL)
+   {
+      printf("%d -> ", noeud->valeur);
+      noeud = noeud->suivant;
+   }
+
+   printf("NULL\n");
+}
+
 static void __afficherEntierRec(EntierNoeud noeud)
 {
    bool premier;
@@ -167,8 +201,8 @@ static void __afficherEntierRec(EntierNoeud noeud)
       premier = true;
 
    // Affiche les 4 chiffres
-   int nombre = noeud.valeur;
-   int chiffre;
+   ValeurNoeud nombre = noeud.valeur;
+   ValeurNoeud chiffre;
 
    chiffre = nombre / 1000;
    nombre -= chiffre * 1000;

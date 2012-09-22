@@ -18,12 +18,12 @@ bool estChiffre(char caract);
  * @pre Caractere qui doit etre un chiffre ;
  * @post Une valeur numerique dans [0; 9].
  */
-int chiffreVal(char caract);
+unsigned char chiffreVal(char caract);
 
 /** Retourne le caractere representant la valeur d'un chiffre.
  * @pre Une valeur numerique dans [0; 9].
  * @post Le caractere representant le chiffre ;
  */
-char chiffreCaract(int val);
+char chiffreCaract(unsigned char val);
 
 #endif

@@ -37,3 +37,10 @@ Entier *d_multiplication(Entier *e1, Entier *e2)
    *res = multiplication(*e1, *e2);
    return res;
 }
+
+Entier *d_division(Entier *numerateur, Entier *denominateur)
+{
+   Entier *res = malloc(sizeof (Entier));
+   *res = division(*numerateur, *denominateur);
+   return res;
+}

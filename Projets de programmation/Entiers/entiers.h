@@ -4,20 +4,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
 #include <stdbool.h>
+
+/** Type utilise pour enregistrer les valeurs des noeuds.
+ * Le type doit pouvoir stocker les valeurs dans [0; +9999].
+ */
+typedef unsigned short ValeurNoeud;
+
+/** Type utilise pour effectuer les operations mathematiques sur les valeurs des
+ * noeuds.
+ * Le type doit pouvoir stocker les valeurs dans [0; 9999^2].
+ */
+typedef unsigned long int ValeurCalcul;
 
 /** Defini un noeud de la liste utilisee pour stocker les entiers signes.
  * Les groupes de 4 chiffres les plus significatifs sont places sur les premiers 
  * noeuds du nombre.
  */
 typedef struct EntierNoeud_t {
-   int valeur;
+   ValeurNoeud valeur;
    struct EntierNoeud_t *suivant;
 } EntierNoeud;
 
-typedef int Signe;
-
+typedef char Signe;
 extern const Signe POSITIF;
 extern const Signe NEGATIF;
 
@@ -47,12 +56,18 @@ Entier creerEntier(Signe signe, EntierNoeud *debut);
  */
 Entier zero(void);
 
+/** Initialise un entier a precision variable d'un seul noeud.
+ * @pre Un entier signe dans [-9999; 9999].
+ * @post La representation de l'entier sous une forme a precision variable.
+ */
+Entier singleton(int valeur);
+
 /** Alloue un nouveau noeud d'un entier a precision variable.
  * @pre La valeur entiere du noeud et un pointeur vers le noeud suivant.
  * @post Un pointeur vers le nouveau noeud. Une assertion est declenchee si le
  *       noeud n'a pu etre alloue.
  */
-EntierNoeud *creerNoeud(int valeur, EntierNoeud *suivant);
+EntierNoeud *creerNoeud(ValeurNoeud valeur, EntierNoeud *suivant);
 
 /** @pre Un entier valide dont la memoire allouee doit etre liberee
  */
@@ -72,5 +87,10 @@ int positif(Entier entier);
  * @pre Un entier a precision variable valide.
  */
 void afficherEntier(Entier entier);
+
+/** Affiche la structure interne d'un entier a precision variable.
+ * @pre Un entier a precision variable valide.
+ */
+void afficherStructure(Entier entier);
 
 #endif

@@ -23,4 +23,11 @@ Entier soustraction(Entier e1, Entier e2);
  */
 Entier multiplication(Entier e1, Entier e2);
 
+/** @pre Deux entiers a precision variable valides. Le denominateur ne peut
+ *       etre nul.
+ * @post Un nouvel entier resultat de la division du premier entier par le
+ *       second entier.
+ */
+Entier division(Entier numerateur, Entier denominateur);
+
 #endif
