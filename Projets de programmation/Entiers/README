@@ -1,0 +1,25 @@
+Projet de programmation: Calculs sur des entiers en precision arbitraire.
+-------------------------------------------------------------------------
+Raphael Javaux - Septembre 2012.
+
+L'enonce de ce travail est disponible a cette adresse:
+http://www.montefiore.ulg.ac.be/~info0030/files/nombres.pdf
+
+Le projet se compile avec make et cree un executable nomme "main".
+L'executable main execute les exemples de l'ennonce.
+
+Tests unitaires
+---------------
+
+En plus des tests donnes dans l'ennonce, j'ai realise un programme de tests
+unitaires (dans le dossier "unit_tests"), ecrit en Haskell, qui fait appel aux
+procedures C pour comparer les resultats obtenus avec ceux du type big-num de
+Haskell. Les fonctions compare(), addition(), subtraction(), multiplication()
+et division() ont ainsi chacune ete testees sur plusieurs millions de paires
+d'entiers.
+
+Ce programme de tests unitaires se compile a l'aide de make (dans le dossier
+"unit_tests") et necessite que le compilateur Haskell GHC ainsi que la
+bibliotheque QuickCheck soient installes. Ensuite, pour tester chaque fonction
+sur, par exemple, un million d'entiers aleatoirement generes:
+   ./UnitTests -a 1000000
