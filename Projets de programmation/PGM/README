@@ -1,0 +1,9 @@
+Projet de programmation: Gestion d’Images Monochromes
+-------------------------------------------------------------------------
+Raphael Javaux - Octobre 2012.
+
+L'enonce de ce travail est disponible a cette adresse:
+http://www.montefiore.ulg.ac.be/~info0030/files/grayscale-IC.pdf
+
+Le projet se compile avec make et cree un executable nomme "main".
+L'executable main execute les exemples de l'ennonce.
