@@ -15,17 +15,30 @@
 // Voir <http://netpbm.sourceforge.net/doc/pgm.html>.
 static const int LINE_MAX = 70;
 // Nombre maximum de cellules de 3 caracteres et un espace sur une ligne.
-static const int MAX_LINE_CELLS = (LINE_MAX - 1) / 4
+static const int MAX_LINE_CELLS = (LINE_MAX - 1) / 4;
 
 /** Lit une ligne dans line depuis file en passant les lignes de commentaire.
  * @pre: line doit pouvoir contenir une ligne de LINE_MAX caracteres plus le 
  *       caractere de fin de ligne ;
- * @post: line contient le contenu de la ligne. La valeur de retour vaut 0 si
+ * @post: line contient le contenu de la ligne. La valeur de retour vaut NULL si
  *        la fin du fichier a ete atteinte ou si une erreur s'est produite.
  */
-static int readLine(char *line, FILE* file);
+static char *readLine(char *line, FILE* file);
 
-PGM readPgm(const char *path)
+PGM allocatePGM(int w, int h)
+{
+    assert (w > 0 && h > 0);
+
+    Pixel* data = malloc (sizeof (Pixel) * w * h);
+    assert (data);
+
+    return (PGM) {
+          .w = w, .h = h
+        , .data = data
+    };
+}
+
+PGM readPGM(const char *path)
 {
     FILE* file = fopen(path, "r");
     assert (file);
@@ -35,14 +48,11 @@ PGM readPgm(const char *path)
     // Verifie que l'entete commence par P2
     assert (readLine(line, file) && strcmp(line, "P2\n") == 0);
 
-    PGM img;
-
     // Lit la taille de l'image et alloue le vecteur
+    int w, h;
     assert (readLine(line, file));
-    sscanf(line, "%d %d", &(img.w), &(img.h));
-
-    img.data = malloc(sizeof (unsigned char *) * img.w * img.h);
-    assert (img.data);
+    sscanf(line, "%d %d", &w, &h);
+    PGM img = allocatePGM(w, h);
 
     // Verifie que l'intensite maximale est 255
     assert (readLine(line, file) && strcmp(line, "255\n") == 0);
@@ -54,21 +64,18 @@ PGM readPgm(const char *path)
         // Lit ligne par ligne
         assert (readLine(line, file)); // Erreur si fichier trop court
 
-        // Utilise la version reentrante. Autant faire ca proprement ...
-        char **saveptr;
-        char *token = strtok_r(line, " \t\r", saveptr);
-
+        char *token = strtok(line, " \t\r");
         while (token != NULL && i < nCells)
         {
             sscanf(token, "%hhu", &img.data[i]);
-            token = strtok_r(NULL, " \t\r", saveptr);
+            token = strtok(NULL, " \t\r");
             i++;
         }
     }
 
     fclose(file);
 
-    retutn img;
+    return img;
 }
 
 void writePGM(const char *path, PGM img)
@@ -84,7 +91,7 @@ void writePGM(const char *path, PGM img)
     for (int i = 0; i < nCells; i += MAX_LINE_CELLS) // Chaque line
     {
         // Chaque cellule de chaque ligne
-        for (int j = 0; j < MAX_LINE_CELL && i + j < nCells; j++)
+        for (int j = 0; j < MAX_LINE_CELLS && i + j < nCells; j++)
             fprintf(file, "%3hhu ", img.data[i + j]);
 
         fprintf(file, "\n");
@@ -95,15 +102,11 @@ void writePGM(const char *path, PGM img)
 
 PGM copyPGM(PGM img)
 {
-    size_t size = sizeof (unsigned char *) * img.w * img.h;
-    unsigned char *oldData = img.data;
+    PGM newImg = allocatePGM(img.w, img.h);
 
-    img.data = malloc(size);
-    assert (img.data);
+    memcpy(newImg.data, img.data, sizeof (Pixel) * img.w * img.h);
 
-    memcpy(img.data, oldData, size);
-
-    return img;
+    return newImg;
 }
 
 void freePGM(PGM img)
@@ -111,9 +114,9 @@ void freePGM(PGM img)
     free(img.data);
 }
 
-static int readLine(char *line, FILE* file)
+static char *readLine(char *line, FILE* file)
 {
-    int ret;
+    char *ret;
     do
         ret = fgets(line, LINE_MAX+1, file);
     while (ret && line[0] == '#');

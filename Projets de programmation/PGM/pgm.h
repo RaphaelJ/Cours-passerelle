@@ -12,19 +12,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef unsigned char Pixel;
+
 /** Contient une image en niveau de gris ainsi que sa taille.
  */
 typedef struct {
     int w, h;
-    unsigned char *data;
+    Pixel *data;
 } PGM;
+
+/** Alloue la structure de donnees pour contenir une image.
+ * @pre Une largeur et une hauteur positive et non nulle ;
+ * @post une image dont la valeur des donnees n'est pas definie.
+ */
+PGM allocatePGM(int w, int h);
 
 /** Lit une image PGM depuis un fichier texte.
  * @pre Le chemin du fichier donne en argument doit pointer vers une image
  *      PGM valide ;
  * @post L'image lue.
  */
-PGM readPgm(const char *path);
+PGM readPGM(const char *path);
 
 /** Ecrit une image PGM dans un fichier texte. Ecrase si le fichier existe.
  * @pre Le chemin du fichier ou ecrire et une image PGM valide.
