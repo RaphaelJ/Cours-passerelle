@@ -83,15 +83,15 @@ PGM diffuse(PGM img, int passes)
 
             // qsort(kernel, ik, sizeof (Pixel), pixelCmp);
 
-            if (nSamples % 2)
+//             if (nSamples % 2)
                res.data[l * img.w + c] = kernel[medianIndex];
-            else
-            {
-               // Calcule la mediane entre deux valeurs pour les medianes paires
-               int a = kernel[ik / 2]
-                 , b = kernel[medianIndex];
-               res.data[l * img.w + c] = (a + b) / 2;
-            }
+//             else
+//             {
+//                // Calcule la mediane entre deux valeurs pour les medianes paires
+//                int a = kernel[ik / 2]
+//                  , b = kernel[medianIndex];
+//                res.data[l * img.w + c] = (a + b) / 2;
+//             }
          }
       }
 
