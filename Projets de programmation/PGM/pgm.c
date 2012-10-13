@@ -19,7 +19,7 @@ static const int LINE_MAX = 70;
 static const int MAX_LINE_CELLS = 17; // (LINE_MAX - 1) / 4;
 
 /** Lit une ligne dans line depuis file en passant les lignes de commentaire.
- * @pre line doit pouvoir contenir une ligne de LINE_MAX caracteres plus le 
+ * @pre line doit pouvoir contenir une ligne de LINE_MAX caracteres plus le
  *      caractere de fin de ligne ;
  * @post line contient le contenu de la ligne. La valeur de retour vaut NULL si
  *       la fin du fichier a ete atteinte ou si une erreur s'est produite.
@@ -28,7 +28,7 @@ static char *readLine(char *line, FILE* file);
 
 /** Verifie que le contenu de la ligne est egal a la chaine, en ignorant les
  * caracteres de retour a la ligne (\r et \n).
- * @pre Une chaine terminee par un \0 et une ligne terminee par \n ou \r ;
+ * @pre Une chaine terminee par un \0 et une ligne terminee par \n et/ou \r ;
  * @post true si la ligne contient uniquement str, false sinon.
  */
 static bool lineEquals(const char *str, const char *line);

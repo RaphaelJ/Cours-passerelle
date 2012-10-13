@@ -17,8 +17,8 @@ typedef unsigned char Pixel;
 /** Contient une image en niveau de gris ainsi que sa taille.
  */
 typedef struct {
-    int w, h;
-    Pixel *data;
+   int w, h;
+   Pixel *data;
 } PGM;
 
 /** Alloue la structure de donnees pour contenir une image.
