@@ -67,7 +67,7 @@ PGM diffuse(PGM img, int passes)
              * diffusion s'effectue 2,2 fois plus rapidement qu'avec qsort(), en
              * commentaire plus bas). */
             int nSamples = ik // Nombre de points du noyau dans l'image
-              , medianIndex = ik / 2 + ik % 2;
+              , medianIndex = ik / 2;
             for (ik = 0; ik <= medianIndex; ik++)
             {
                for (int jk = ik; jk < nSamples; jk++)
@@ -80,18 +80,17 @@ PGM diffuse(PGM img, int passes)
                   }
                }
             }
-
             // qsort(kernel, ik, sizeof (Pixel), pixelCmp);
 
-//             if (nSamples % 2)
+            if (nSamples % 2)
                res.data[l * img.w + c] = kernel[medianIndex];
-//             else
-//             {
-//                // Calcule la mediane entre deux valeurs pour les medianes paires
-//                int a = kernel[ik / 2]
-//                  , b = kernel[medianIndex];
-//                res.data[l * img.w + c] = (a + b) / 2;
-//             }
+            else
+            {
+               // Calcule la mediane entre deux valeurs pour les medianes paires
+               int a = kernel[medianIndex - 1]
+                 , b = kernel[medianIndex];
+               res.data[l * img.w + c] = (a + b) / 2;
+            }
          }
       }
 
