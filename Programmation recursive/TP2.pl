@@ -17,3 +17,4 @@ frere_ou_soeur(X,Y) :- mere(Z, X), mere(Z,Y), X \= Y.
 
 frere(X,Y) :- frere_ou_soeur(X, Y), homme(X).
 soeur(X,Y) :- frere_ou_soeur(X, Y), femme(X).
+

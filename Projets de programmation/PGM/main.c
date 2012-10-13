@@ -15,5 +15,8 @@
 
 int main(void)
 {
+    PGM p = readPGM("/home/rapha/passerelle/Projets de programmation/PGM/grayscale-donnees/saturn.pgm");
+    writePGM("out.pgm", p);
+
     return 0;
 }

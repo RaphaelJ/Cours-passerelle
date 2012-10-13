@@ -7,6 +7,7 @@
  */
 
 #include <assert.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "pgm.h"
@@ -18,12 +19,17 @@ static const int LINE_MAX = 70;
 static const int MAX_LINE_CELLS = (LINE_MAX - 1) / 4;
 
 /** Lit une ligne dans line depuis file en passant les lignes de commentaire.
- * @pre: line doit pouvoir contenir une ligne de LINE_MAX caracteres plus le 
- *       caractere de fin de ligne ;
- * @post: line contient le contenu de la ligne. La valeur de retour vaut NULL si
- *        la fin du fichier a ete atteinte ou si une erreur s'est produite.
+ * @pre line doit pouvoir contenir une ligne de LINE_MAX caracteres plus le 
+ *      caractere de fin de ligne ;
+ * @post line contient le contenu de la ligne. La valeur de retour vaut NULL si
+ *       la fin du fichier a ete atteinte ou si une erreur s'est produite.
  */
 static char *readLine(char *line, FILE* file);
+
+/** @pre Deux chaines terminees par un \0 ;
+ * @post true si str commence par prefix, false sinon.
+ */
+static bool isPrefix(const char *prefix, const char *str);
 
 PGM allocatePGM(int w, int h)
 {
@@ -46,7 +52,7 @@ PGM readPGM(const char *path)
     char line[LINE_MAX+1];
 
     // Verifie que l'entete commence par P2
-    assert (readLine(line, file) && strcmp(line, "P2\n") == 0);
+    assert (readLine(line, file) && isPrefix("P2", line));
 
     // Lit la taille de l'image et alloue le vecteur
     int w, h;
@@ -55,7 +61,7 @@ PGM readPGM(const char *path)
     PGM img = allocatePGM(w, h);
 
     // Verifie que l'intensite maximale est 255
-    assert (readLine(line, file) && strcmp(line, "255\n") == 0);
+    assert (readLine(line, file) && line[0]  strcmp(line, "255\n") == 0);
 
     // Lit les donnees
     int i = 0, nCells = img.h * img.w;
@@ -122,4 +128,14 @@ static char *readLine(char *line, FILE* file)
     while (ret && line[0] == '#');
 
     return ret;
+}
+
+static bool isPrefix(const char *prefix, const char *str)
+{
+    while (*prefix != '\0')
+    {
+        if (*(prefix++) != *(str++))
+            return false;
+    }
+    return true;
 }
