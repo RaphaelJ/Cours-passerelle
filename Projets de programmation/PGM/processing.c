@@ -52,7 +52,7 @@ PGM diffuse(PGM img, int passes)
               , maxCol = min(c + 1, img.w - 1);
 
             /* Itere toutes les cellules de la matrice noyau de diffusion
-            * qui sont dans l'image */
+             * qui sont dans l'image */
             Pixel kernel[9];
             int ik = 0;
             for (int lk = minLgn; lk <= maxLgn; lk++)
