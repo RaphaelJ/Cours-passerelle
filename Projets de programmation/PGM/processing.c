@@ -65,7 +65,9 @@ PGM diffuse(PGM img, int passes)
              * Etant donne que la matrice noyau est petite, ce tri s'effectue
              * plus rapidement que le quicksort de la stdlib (l'operation de
              * diffusion s'effectue 2,2 fois plus rapidement qu'avec qsort(), en
-             * commentaire plus bas). */
+             * commentaire plus bas).
+             * L'utilisation d'un algorithme comme quickselect est egalement 
+             * plus lent a cause de la petite taille du noyau. */
             int nSamples = ik // Nombre de points du noyau dans l'image
               , medianIndex = ik / 2;
             for (ik = 0; ik <= medianIndex; ik++)
@@ -80,13 +82,14 @@ PGM diffuse(PGM img, int passes)
                   }
                }
             }
+
             // qsort(kernel, ik, sizeof (Pixel), pixelCmp);
 
             if (nSamples % 2)
                res.data[l * img.w + c] = kernel[medianIndex];
             else
             {
-               // Calcule la mediane entre deux valeurs pour les medianes paires
+               // Calcule la mediane entre deux valeurs pour les matrices paires
                int a = kernel[medianIndex - 1]
                  , b = kernel[medianIndex];
                res.data[l * img.w + c] = (a + b) / 2;
