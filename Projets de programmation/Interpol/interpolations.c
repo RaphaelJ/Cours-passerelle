@@ -5,6 +5,8 @@
  * fonctions d'interpolations.
  */
 
+#include <string.h>
+
 #include "interpolations.h"
 
 /** @pre Les donnees d'interpolation lineaire et un point dans le domaine
@@ -47,6 +49,18 @@ static double splineDestruct(InterpolData data);
  *       elle est apres le domaine de la section.
  */
 static int splineSectionCmp(const void *vX, const void *vSection);
+
+
+/** @pre Les donnees d'interpolation de Lagrange et un point dans le domaine
+ *       d'interpolation ;
+ * @post le point a l'ordonnee correspondante estimee.
+ */
+static double lagrangeFct(InterpolData data, double x);
+
+/** @pre Les donnees de l'interpolation de Lagrange a liberer.
+ */
+static double lagrangeDestruct(InterpolData data);
+
 
 double interpolate(Interpol interpol, double x)
 {
@@ -123,7 +137,7 @@ Interpol splineInterpol(
 
    SplineData data = {
         .n = n - 1
-      , sections = (SplineSection *) malloc(sizeof (SplineSection) * (n - 1))
+      , .sections = (SplineSection *) malloc(sizeof (SplineSection) * (n - 1))
    };
    assert (data.sections != NULL);
 
@@ -148,25 +162,30 @@ Interpol splineInterpol(
 static double splineFct(InterpolData data, double x)
 {
    // Recherche la section par une recherche dicotomique.
-   SplineSection *section = bsearch(
+   SplineSection *sect = bsearch(
       &x, data.spline.sections, n, sizeof (SplineSection), splineSectionCmp
    );
 
    assert (section != NULL); // x doit etre dans le domaine de l'interpolation.
 
-   double t = (x - section->x1) / (section->x2 - section->x1);
+   double x1 = section->x1, x2 = section->x2
+        , m1 = section->m1, m2 = section->m2;
+
+   double dx = x2 - x1;
+   double t = (x - x1) / dx;
 
    // Calcule les termes recurrents
-   double a = t * t // a = t^2
-        , b = t * t * t; // b = t^3
+   double a = t * t; // a = t^2
+   double b = a * t; // b = t^3
    double c = 2 * b // c = 2 t^3
         , d = 3 * a // d = 3 t^2
+        , e = 2 * a; // e = 2 t^2
 
    // Calcule les polynomes
-   double h00 = 
-        , 
+   double h00 = c - d + 1, h10 = b - e + t
+        , h01 = -c + b   , h11 = b - a;
 
-   return section->m * (x - section->x1) + section->y1;
+   return h00 * y1 + h10 * dx * m1 + h01 * y2 + h11 * dx * m2;
 }
 
 static double splineDestruct(InterpolData data)
@@ -185,4 +204,54 @@ static int splineSectionCmp(const void *vX, const void *vSection)
       return +1;
    else
       return 0;
+}
+
+Interpol lagrangeInterpol(int n, const double xs[], const double ys[])
+{
+   assert (n >= 1);
+
+   LagrangeData data = {
+        .n = n
+      , .xs = (double *) malloc(sizeof (double) * n)
+      , .ys = (double *) malloc(sizeof (double) * n)
+   };
+   assert (data.xs != NULL && data.ys != NULL);
+
+   // Copie les coordonnes.
+   memcpy(data.xs, xs, sizeof (double) * n);
+   memcpy(data.ys, ys, sizeof (double) * n);
+
+   return (Interpol) {
+      .data.lagrange = data, .fct = lagrangeFct, .destruct = lagrangeDestruct
+   };
+}
+
+static double lagrangeFct(InterpolData data, double x)
+{
+   const double *xs = data.lagrange.xs, *ys = data.lagrange.ys;
+
+   double sum = 0;
+   for (int i = 0; i < data.lagrange.n, i++)
+   {
+      // Calcule la produit des (n-1) polynomes et l'ajoute a la somme
+      double product = ys[i]
+           , xi = xs[i];
+      for (int j = 0; j < data.lagrange.n; i++)
+      {
+         if (j != i)
+         {
+            double xj = xs[j];
+            product *= (x - xj) / (xi - xj);
+         }
+      }
+      sum += product;
+   }
+
+   return sum;
+}
+
+static double lagrangeDestruct(InterpolData data)
+{
+   free(data.lagrange.xs);
+   free(data.lagrange.ys);
 }
