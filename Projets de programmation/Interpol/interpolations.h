@@ -18,7 +18,7 @@ typedef struct {
    double m; // Pente
 } LinearSection;
 
-/** Contient les donnees d'une interpolation lineaire. */
+/** Contient les donnees utilisees lors d'une interpolation lineaire. */
 typedef struct {
    int n; // Nombre de sections
    LinearSection *sections;
@@ -28,24 +28,24 @@ typedef struct {
 typedef struct {
    double x1, x2, y1, y2;
    double m1, m2; // Derivee locale
-   double h00, h10, h01, h11;
-   double m; // Pente
 } SplineSection;
 
-/** Contient les donnees d'une interpolation par splines. */
+/** Contient les donnees utilisees lors d'une interpolation par splines. */
 typedef struct {
    int n; // Nombre de sections
    SplineSection *sections;
 } SplineData;
 
-/** Contient les donnees d'une interpolation par un polynome de Lagrange. */
+/** Contient les donnees utilisees lors d'une interpolation par un polynome de 
+ * Lagrange. */
 typedef struct {
    int n; // Nombre de points
    double *xs, *ys;
 //    double denom; // Produit des denominateurs des polynomes de Lagrange
 } LagrangeData;
 
-/** Contient les donnees d'une interpolation par des courbes de Bezier. */
+/** Contient les donnees utilisees lors d'une interpolation par des courbes de 
+ * Bezier. */
 typedef struct {
    int n; // Nombre de points
    double *xs, *ys;
@@ -77,8 +77,8 @@ typedef struct {
    InterpolData data;
 
    /** Pointeur de fonction qui, etant donne les donnees d'interpolation,
-    * retourne le point d'ordonnee estimee correspondant a l'abscisse donnee.
-    * @pre les donnees correspondant a la methode d'interpolation et un point
+    * retourne le point d'ordonnee interpolee sur l'abscisse donnee.
+    * @pre Les donnees correspondant a la methode d'interpolation et un point
     *      d'abscisse ;
     * @post le point a l'ordonnee correspondante estimee.
     */
@@ -86,17 +86,37 @@ typedef struct {
 
    /** Utilise pour liberer la memoire utilisee par les donnees de 
     * l'interpolation.
-    * @pre les donnees correspondant a la methode d'interpolation.
+    * @pre Les donnees correspondant a la methode d'interpolation.
     */
    double (*destruct)(InterpolData data);
 } Interpol;
 
-/** @pre Le nombre et les coordonnees des points a interpoler (au moins deux
- *       points). Les points doivent etre donnes en abscisse croissante ;
+/** Retourne l'ordonnee du point donne en argument en utilisant la methode et
+ * les donnees de la structure interpol.
+ */
+double interpolate(Interpol interpol, double x);
+
+/** Libere les donnees en utilisant le destructeur approprie a la methode
+ * d'interpolation.
+ */
+void freeInterpol(Interpol interpol);
+
+/** @pre Le nombre et les coordonnees des points a utiliser durant les
+ *       interpolations (au moins deux points). Les points doivent etre donnes 
+ *       en abscisse croissante ;
  * @post les donnees a utiliser pour interpoler un point.
  */
 Interpol linearInterpol(int n, const double xs[], const double ys[]);
-Interpol splineInterpol(int n, const double xs[], const double ys[]);
+
+/** @pre Le nombre, les coordonnees et les tangentes des points a utiliser
+ *       durant les interpolations (au moins deux points). Les points doivent
+ *       etre donnes en abscisse croissante ;
+ * @post les donnees a utiliser pour interpoler un point.
+ */
+Interpol splineInterpol(
+   int n, const double xs[], const double ys[], const double ms[]
+);
+
 Interpol lagrangeInterpol(int n, const double xs[], const double ys[]);
 Interpol bezierInterpol(int n, const double xs[], const double ys[]);
 
