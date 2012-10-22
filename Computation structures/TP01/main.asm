@@ -91,7 +91,7 @@ set_black_if_not:
 
 	|; setblack (x, y)
 		OR(Rcell, Rbit, Rcell) |; Rcell |= Rbit
-		ST(Rcell, 0, Rindex)   |; image[Rindex] = Rcell
+		ST(Rcell, image, Rindex)   |; image[Rindex] = Rcell
 
 	|; Retourne a l'endroit ou la pseudo-procedure a ete appellee
 	jump_set_black_if_not:	
