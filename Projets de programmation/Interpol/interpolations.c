@@ -177,8 +177,8 @@ static double splineFct(InterpolData data, double x)
    // Calcule les termes recurrents
    double a = t * t; // a = t^2
    double b = a * t; // b = t^3
-   double c = 2 * b // c = 2 t^3
-        , d = 3 * a // d = 3 t^2
+   double c = 2 * b  // c = 2 t^3
+        , d = 3 * a  // d = 3 t^2
         , e = 2 * a; // e = 2 t^2
 
    // Calcule les polynomes
@@ -206,6 +206,7 @@ static int splineSectionCmp(const void *vX, const void *vSection)
       return 0;
 }
 
+
 Interpol lagrangeInterpol(int n, const double xs[], const double ys[])
 {
    assert (n >= 1);
@@ -217,7 +218,7 @@ Interpol lagrangeInterpol(int n, const double xs[], const double ys[])
    };
    assert (data.xs != NULL && data.ys != NULL);
 
-   // Copie les coordonnes.
+   // Copie les coordonnes localement.
    memcpy(data.xs, xs, sizeof (double) * n);
    memcpy(data.ys, ys, sizeof (double) * n);
 
