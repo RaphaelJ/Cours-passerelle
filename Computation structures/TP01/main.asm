@@ -64,7 +64,6 @@ floodfill:
 
 		BT(Rpixel, is_already_black) 
 
-
 |; Pseudo-procedure qui met le pixel (Rx, Ry) a 1 s'il ne l'est pas deja.
 |; Evite ainsi de recalculer deux fois les coordonnees si les fonctions
 |; isblack() et setblack() etait implementees separement.
