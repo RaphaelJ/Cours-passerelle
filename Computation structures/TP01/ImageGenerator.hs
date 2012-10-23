@@ -30,15 +30,15 @@ main = do
                 then putStrLn $ "The image is larger than " ++ show screenWidth
                 else do
                     let paddingLen = (screenWidth - w) `quot` 32
-                    let padding = "STORAGE(" ++ show paddingLen ++ ")"
+                    let padding = concat $ take paddingLen $ repeat "LONG(0) "
 
                     forM_ (bitmapWords $ toBitmap img) $ \line -> do
                         forM_ line $ \word ->
                             putStr $ "LONG(" ++ show word ++ ") "
                         putStrLn padding
 
-                    putStrLn $ "w: LONG(" ++ show w ++ ")"
-                    putStrLn $ "h: LONG(" ++ show h ++ ")"
+                    putStrLn $ "IMW: LONG(" ++ show screenWidth ++ ")"
+                    putStrLn $ "IMH: LONG(" ++ show h ++ ")"
         _ ->
             putStrLn "Usage : ./ImageGenerator <image path>"
   where
