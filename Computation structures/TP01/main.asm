@@ -12,8 +12,8 @@ image:
 	|; .include images/nyancat.asm
 	|; .include images/BIGBOOBS.asm
 
-x: LONG(10)
-y: LONG(15)
+x: LONG(0)
+y: LONG(1)
  
 main:
 	LD(x, R0) PUSH(R0)
@@ -23,7 +23,7 @@ main:
 	.breakpoint
 	HALT()
 
-|; MODC(Ra, C, Rc)       			| Rc = Ra % C = Ra - ((Ra / C) * C)
+|; MODC(Ra, C, Rc)       			|; Rc = Ra % C = Ra - ((Ra / C) * C)
 .macro MODC(Ra, C, Rc) 		DIVC(Ra, C, Rc) MULC(Rc, C, Rc) SUB(Ra, Rc, Rc)
 
 Rx = R1
@@ -155,13 +155,15 @@ top_border:
 |; Modifie les valeurs de Rbit, Rindex et Rcell et jumpe sur Rjump.
 set_black_if_not:
 	|; Calcule l'index de la cellule de 32 bits
-	|; Rindex = (Ry * Rw + Rx) / 32 :
+	|; Rindex = (Ry * Rw + Rx) / 4 :
 		MUL(Ry, Rw, Rindex) ADD(Rindex, Rx, Rindex)
-		DIVC(Rindex, 32, Rindex)
+		DIVC(Rindex, 4, Rindex)
 
 	|; Charge la cellule de 32 bits
+	LD(image+8*4, Rcell) 
 	.breakpoint
 	LD(Rindex, image, Rcell) 		|; Rcell = image[Rindex]
+	.breakpoint
 
 	|; Extrait le pixel de la cellule de 32 bits
 	|; Rpixel = Rcell & (1 << (Rx % 32)) :
