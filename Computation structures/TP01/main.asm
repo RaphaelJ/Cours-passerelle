@@ -8,48 +8,64 @@ BR(main)         				|; Lance le programme
 .align 32 |; align <x> aligne sur un multiple de <x> bytes
 
 image:
+	|; Quelques images avec des positions initiales pour le floodfill.
+	|; IMW et IMH sont definis dans les fichiers .asm des images.
+	
 	.include images/pikachu.asm
+	x: LONG(40) 			|; Colorie la queue
+	y: LONG(19)
+
 	|; .include images/nyancat.asm
+	|; x: LONG(80) 			|; Colorie la tete
+	|; y: LONG(25)
+
 	|; .include images/BIGBOOBS.asm
-
-x: LONG(100)
-y: LONG(1)
+	|; x: LONG(20) 			|; Colorie le dernier L
+	|; y: LONG(12)
  
+	|; .include images/java.asm
+	|; x: LONG(50) 			|; Colorie les dents
+	|; y: LONG(50)
 main:
-	LD(x, R0) PUSH(R0)
-	LD(y, R0) PUSH(R0)
-	CALL(floodfill)
+	|; Pour verifier que les registres sont correctement reinitialises :
+	CMOVE(0x1, R1)	CMOVE(0x6, R6)
+	CMOVE(0x2, R2)	CMOVE(0x7, R7)
+	CMOVE(0x3, R3)	CMOVE(0x8, R8)
+	CMOVE(0x4, R4)	CMOVE(0x9, R9)
+	CMOVE(0x5, R5)	CMOVE(0x10, R10)
 
-	.breakpoint
+	LD(y, R0) PUSH(R0)
+	LD(x, R0) PUSH(R0)
+	CALL(floodfill, 2)
+
 	HALT()
 
 |; MODC(Ra, C, Rc)       			|; Rc = Ra % C = Ra - ((Ra / C) * C)
 .macro MODC(Ra, C, Rc) 		DIVC(Ra, C, Rc) MULC(Rc, C, Rc) SUB(Ra, Rc, Rc)
 
-Rx = R1
-Ry = R0
-Rh = R2
-Rw = R2
-Rcond = R3
-Rindex = R3
-Rbit = R4
-Rcell = R5
-Rpixel = R6
-Rjump = R7
-Rright = R8
-Rleft = R9
-Ry2 = R10
+Ry = R1			|; Ordonnee
+Rx = R3			|; Abscisse
+Rh = R2			|; Hauteur de l'image 
+Rw = R2			|; Largeur de l'image (ecrase Rh)
+Rcond = R0		|; Utilise pour les tests et conditions
+Rindex = R0		|; Indice de la cellule de 32 bits qui contient le pixel
+Rbit = R4 		|; Numero du bit dans la cellule de 32 bits
+Rcell = R5		|; Contenu de la cellule de 32 bits
+Rpixel = R6		|; Contenu du bit dans la cellule de 32 bits
+Rjump = R7		|; Addresse de retour pour la pseudo procedure set_black_if_not
+Rright = R8		|; Indice du premier pixel noir a droite
+Ry2 = R7		|; Ry2 = y + 1 pour l'iteration des cas recursifs (== Rjump)
 
 floodfill:
 	PUSH(LP) PUSH(BP)
 	MOVE(SP, BP)
 
 	|; if y < 0 || y >= h then returns
-		PUSH(Rcond)	 		|; Ne sauve pas Ry qui est r0
-		LD(BP, -12, Ry) 		|; Ry = y
+		PUSH(Ry)
+		LD(BP, -16, Ry) 		|; Ry = y
 
 		|; y < 0
-		CMPLTC(Ry, 0, Rcond)
+		CMPLTC(Ry, 0, Rcond) 		|; Ne sauve pas Rcond qui est R0
 		BT(Rcond, top_border)
 
 		|; y >= h => not (y < h)
@@ -58,7 +74,7 @@ floodfill:
 		BF(Rcond, bottom_border)
 	
 	|; if isblack (x, y) then returns else setblack (x, y)
-		PUSH(Rx) LD(BP, -16, Rx) 	|; Rx = x
+		PUSH(Rx) LD(BP, -12, Rx) 	|; Rx = x
 		PUSH(Rbit) PUSH(Rcell) PUSH(Rpixel) PUSH(Rjump)
 
 		LD(IMW, Rw) 			|; Rw ecrase Rh, qui n'est plus utilise dans la fonction
@@ -82,9 +98,8 @@ floodfill:
 	explore_right_done:
 		|; Place la valeur de Rx dans Rright et recupere la valeur originale de Rx
 		|; Rright contient le premier pixel non modifie a droite
-		PUSH(Rright) 
-		MOVE(Rx, Rright) 		|; Rright = Rx
-		LD(BP, -16, Rx) 		|; Rx = x
+		PUSH(Rright) MOVE(Rx, Rright) 	|; Rright = Rx
+		LD(BP, -12, Rx) 		|; Rx = x
 
 	|; Explore horizontalement, vers la gauche.
 	explore_left:
@@ -99,52 +114,50 @@ floodfill:
 		BT(Rpixel, explore_left_done) 	|; Stoppe si deja noir
 		BR(explore_left) 		|; Sinon, passe au pixel de droite
 	explore_left_done:
-		|; Place la valeur de Rx dans Rleft. 
-		|; Rleft contient le premier pixel non modifie a gauche
-		PUSH(Rleft) 
-		MOVE(Rx, Rleft) 		|; Rleft = Rx
+
+	|; Rx contient le premier pixel non modifie a gauche
 	
-	|; Explore les pixels en y-1 et y+1 avec x dans ]Rleft; Rright[.
+	|; Explore les pixels en y-1 et y+1 avec x dans ]Rx; Rright[.
 	|; Contrairement au code de l'ennonce, il n'est pas necessaire de visiter 
-	|; Rleft et Rright etant donne qu'ils sont soit hors de l'image, soit noirs.
+	|; Rx et Rright etant donne qu'ils sont soit hors de l'image, soit noirs.
 	|; De plus, les deux boucles de l'ennonce iterent recursent deux fois sur 
-	|; (x, y-1) et (x, y+1).
-	MOVE(Rx, Rleft)
-	SUBC(Ry, 1, Ry) 			|; Ry = y - 1
-	PUSH(Ry2) ADDC(Ry, 2, Ry2) 		|; Ry2 = y + 1
+	|; (x, y-1) et (x, y+1), la boucle suivante ne visite qu'une fois ce point.
+	SUBC(Ry, 1, Ry) 			|; Ry  = y - 1
+	ADDC(Ry, 2, Ry2) 		|; Ry2 = y + 1
 	explore_verticaly:
 		ADDC(Rx, 1, Rx) 		|; Rx++
 
-		CMPLE(Rx, Rright, Rcond) 	|; Stops if Rx >= Rright  
+		CMPLT(Rx, Rright, Rcond) 	|; Stops if Rx >= Rright  
 		BF(Rcond, done)
-		
-		PUSH(Rx)
 
 		|; floodfill(Rx, y-1)
 		PUSH(Ry)
-		CALL(floodfill)
-		DEALLOCATE(1) 			|; Libere Ry
+		PUSH(Rx)
+		CALL(floodfill, 2)
+
 		|; floodfill(Rx, y+1)
 		PUSH(Ry2)
-		CALL(floodfill)
-		DEALLOCATE(2) 			|; Libere Ry et Rx
+		PUSH(Rx)
+		CALL(floodfill, 2)
 
 		BR(explore_verticaly)
 
 |; Branches de terminaison de la fonction floodfill
 done:
-	POP(Ry2) POP(Rleft) POP(Rright)
+	POP(Rright)
 
 is_already_black:
-	POP(Rjump) POP(Rpixel) POP(Rcell) POP(Rbit)
+	POP(Rjump) 				|; == POP(Ry2)
+	POP(Rpixel) 
+	POP(Rcell) POP(Rbit)
 	POP(Rx) 
 	
 bottom_border:
 	POP(Rh) 				|; == POP(Rw)
 
 top_border:
-	POP(Rcond) 				|; == POP(Rindex)
-	|; POP(Ry) == R0 => pas besoin de restaurer
+	|; POP(Rcond) == POP(RIndex) == R0 => pas besoin de restaurer
+	POP(Ry)
 	POP(BP)	POP(LP)
 	RTN()
 
@@ -157,11 +170,11 @@ set_black_if_not:
 	|; Calcule l'index de la cellule de 32 bits
 	|; Rindex = (Ry * Rw + Rx) / 8 :
 		MUL(Ry, Rw, Rindex) ADD(Rindex, Rx, Rindex)
-		DIVC(Rindex, 8, Rindex)
-		|SHR(Rindex, 3, Rindex) 		|; == DIVC(Rindex, 8, Rindex)
+		SHRC(Rindex, 3, Rindex)		|; == DIVC(Rindex, 8, Rindex)
 
 	|; Charge la cellule de 32 bits
 	LD(Rindex, image, Rcell) 		|; Rcell = image[Rindex]
+						|; Rindex & OxFFFFFF00 inutile
 
 	|; Extrait le pixel de la cellule de 32 bits
 	|; Rpixel = Rcell & (1 << (Rx % 32)) :
