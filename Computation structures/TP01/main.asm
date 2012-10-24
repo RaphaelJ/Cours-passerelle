@@ -12,7 +12,7 @@ image:
 	|; .include images/nyancat.asm
 	|; .include images/BIGBOOBS.asm
 
-x: LONG(0)
+x: LONG(100)
 y: LONG(1)
  
 main:
@@ -29,16 +29,16 @@ main:
 Rx = R1
 Ry = R0
 Rh = R2
-Rw = R3
-Rcond = R4
-Rindex = R4
-Rbit = R5
-Rcell = R6
-Rpixel = R7
-Rjump = R8
-Rright = R9
-Rleft = R10
-Ry2 = R11
+Rw = R2
+Rcond = R3
+Rindex = R3
+Rbit = R4
+Rcell = R5
+Rpixel = R6
+Rjump = R7
+Rright = R8
+Rleft = R9
+Ry2 = R10
 
 floodfill:
 	PUSH(LP) PUSH(BP)
@@ -149,21 +149,19 @@ top_border:
 	RTN()
 
 |; Pseudo-procedure qui met le pixel (Rx, Ry) a 1 s'il ne l'est pas deja.
-|; Evite ainsi de recalculer deux fois les coordonnees si les fonctions
-|; isblack() et setblack() etait implementees separement.
+|; Evite ainsi de recalculer deux fois les coordonnees d'un meme point si les
+|; fonctions isblack() et setblack() etait implementees separement.
 |; Place une valeur non nulle dans Rpixel si le pixel etait a 1.
 |; Modifie les valeurs de Rbit, Rindex et Rcell et jumpe sur Rjump.
 set_black_if_not:
 	|; Calcule l'index de la cellule de 32 bits
-	|; Rindex = (Ry * Rw + Rx) / 4 :
+	|; Rindex = (Ry * Rw + Rx) / 8 :
 		MUL(Ry, Rw, Rindex) ADD(Rindex, Rx, Rindex)
-		DIVC(Rindex, 4, Rindex)
+		DIVC(Rindex, 8, Rindex)
+		|SHR(Rindex, 3, Rindex) 		|; == DIVC(Rindex, 8, Rindex)
 
 	|; Charge la cellule de 32 bits
-	LD(image+8*4, Rcell) 
-	.breakpoint
 	LD(Rindex, image, Rcell) 		|; Rcell = image[Rindex]
-	.breakpoint
 
 	|; Extrait le pixel de la cellule de 32 bits
 	|; Rpixel = Rcell & (1 << (Rx % 32)) :
