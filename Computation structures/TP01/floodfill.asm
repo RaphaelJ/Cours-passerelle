@@ -1,54 +1,16 @@
-.include beta.uasm
+|; Variables globales
+image: STORAGE(1)
+IMW: STORAGE(1)
+IMH: STORAGE(1)
 
-CMOVE(stack, SP) 				|; Initalise SP
-BR(main)         				|; Lance le programme
-
-|; Aligne l'image sur 256 bits pour s'afficher correctement sur la 
-|; visualisation de la VRAM.
-.align 32 |; align <x> aligne sur un multiple de <x> bytes
-
-image:
-	|; Quelques images avec des positions initiales pour le floodfill.
-	|; IMW et IMH sont definis dans les fichiers .asm des images.
-	
-	.include images/pikachu.asm
-	x: LONG(40) 			|; Colorie la queue
-	y: LONG(19)
-
-	|; .include images/nyancat.asm
-	|; x: LONG(80) 			|; Colorie la tete
-	|; y: LONG(25)
-
-	|; .include images/BIGBOOBS.asm
-	|; x: LONG(20) 			|; Colorie le dernier L
-	|; y: LONG(12)
- 
-	|; .include images/java.asm
-	|; x: LONG(50) 			|; Colorie les dents
-	|; y: LONG(50)
-main:
-	|; Pour verifier que les registres sont correctement reinitialises :
-	CMOVE(0x1, R1)	CMOVE(0x6, R6)
-	CMOVE(0x2, R2)	CMOVE(0x7, R7)
-	CMOVE(0x3, R3)	CMOVE(0x8, R8)
-	CMOVE(0x4, R4)	CMOVE(0x9, R9)
-	CMOVE(0x5, R5)	CMOVE(0x10, R10)
-
-	LD(y, R0) PUSH(R0)
-	LD(x, R0) PUSH(R0)
-	CALL(floodfill, 2)
-
-	HALT()
-
-|; MODC(Ra, C, Rc)       			|; Rc = Ra % C = Ra - ((Ra / C) * C)
-.macro MODC(Ra, C, Rc) 		DIVC(Ra, C, Rc) MULC(Rc, C, Rc) SUB(Ra, Rc, Rc)
-
+|; Alias aux registres
 Ry = R1			|; Ordonnee
 Rx = R3			|; Abscisse
 Rh = R2			|; Hauteur de l'image 
 Rw = R2			|; Largeur de l'image (ecrase Rh)
 Rcond = R0		|; Utilise pour les tests et conditions
 Rindex = R0		|; Indice de la cellule de 32 bits qui contient le pixel
+Rimage = R9		|; Valeur du pointeur image
 Rbit = R4 		|; Numero du bit dans la cellule de 32 bits
 Rcell = R5		|; Contenu de la cellule de 32 bits
 Rpixel = R6		|; Contenu du bit dans la cellule de 32 bits
@@ -75,13 +37,17 @@ floodfill:
 	
 	|; if isblack (x, y) then returns else setblack (x, y)
 		PUSH(Rx) LD(BP, -12, Rx) 	|; Rx = x
-		PUSH(Rbit) PUSH(Rcell) PUSH(Rpixel) PUSH(Rjump)
+		PUSH(Rimage) PUSH(Rbit) PUSH(Rcell) PUSH(Rpixel) PUSH(Rjump)
 
 		LD(IMW, Rw) 			|; Rw ecrase Rh, qui n'est plus utilise dans la fonction
+
+		|; Lit l'adresse de l'image
+		LD(image, Rimage)
 		
-		BR(set_black_if_not, Rjump) 	|; Rpixel vaut != 0 si le pixel etait deja noir
+		BR(set_black_if_not, Rjump)	|; Rpixel vaut != 0 si le pixel etait deja noir
 
 		BT(Rpixel, is_already_black) 	|; Retourne si deja noir
+
 
 	|; Explore horizontalement, vers la droite
 	explore_right:
@@ -150,7 +116,7 @@ is_already_black:
 	POP(Rjump) 				|; == POP(Ry2)
 	POP(Rpixel) 
 	POP(Rcell) POP(Rbit)
-	POP(Rx) 
+	POP(Rimage) POP(Rx) 
 	
 bottom_border:
 	POP(Rh) 				|; == POP(Rw)
@@ -173,12 +139,12 @@ set_black_if_not:
 		SHRC(Rindex, 3, Rindex)		|; == DIVC(Rindex, 8, Rindex)
 
 	|; Charge la cellule de 32 bits
-	LD(Rindex, image, Rcell) 		|; Rcell = image[Rindex]
-						|; Rindex & OxFFFFFF00 inutile
+	ADD(Rindex, Rimage, Rindex)		|; Rcell = image[Rindex]
+	LD(Rindex, 0, Rcell) 			|; Rindex & OxFFFFFF00 inutile
 
 	|; Extrait le pixel de la cellule de 32 bits
 	|; Rpixel = Rcell & (1 << (Rx % 32)) :
-		MODC(Rx, 32, Rbit)  		|; Rbit = Rx % 32
+		ANDC(Rx, 0x1F, Rbit)  		|; == MODC(Rx, 32, Rbit) == Rbit = Rx % 32
 		ADDC(R31, 1, Rpixel)   		|; Rpixel = 1
 		SHL(Rpixel, Rbit, Rbit) 	|; Rbit = 1 << (Rx % 32)
 		AND(Rcell, Rbit, Rpixel)  	|; Rpixel = Rcell & Rbit
@@ -188,12 +154,8 @@ set_black_if_not:
 
 	|; setblack (x, y)
 		OR(Rcell, Rbit, Rcell) 		|; Rcell |= Rbit
-		ST(Rcell, image, Rindex)   	|; image[Rindex] = Rcell
+		ST(Rcell, 0, Rindex)   		|; image[Rindex] = Rcell
 
 	|; Retourne a l'endroit ou la pseudo-procedure a ete appellee
 	jump_set_black_if_not:	
 		JMP(Rjump)
-
-LONG(0xdeadcafe)
-stack:
-	STORAGE(1024)

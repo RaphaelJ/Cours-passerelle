@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "point.h"
+
 /** Contient les informations d'une section de l'interpolation lineaire. */
 typedef struct {
    double x1, x2;
@@ -26,8 +28,7 @@ typedef struct {
 
 /** Contient les informations d'une section de l'interpolation par splines. */
 typedef struct {
-   double x1, x2, y1, y2;
-   double m1, m2; // Derivee locale
+   PointDer p1, p2;
 } SplineSection;
 
 /** Contient les donnees utilisees lors d'une interpolation par splines. */
@@ -40,15 +41,8 @@ typedef struct {
  * Lagrange. */
 typedef struct {
    int n; // Nombre de points
-   double *xs, *ys;
+   Point *ps;
 } LagrangeData;
-
-/** Contient les donnees utilisees lors d'une interpolation par des courbes de 
- * Bezier. */
-typedef struct {
-   int n; // Nombre de points
-   double *xs, *ys;
-} BezierData;
 
 /** Contient les donnees passees aux differentes methodes de calcul des
  * interpolations. L'union permet un polymorphisme primitif au niveau de
@@ -61,10 +55,9 @@ typedef struct {
  *           devrait etre largement plus rapide.
  */
 typedef union {
-   LinearSection linear;
+   LinearData linear;
    SplineData spline;
    LagrangeData lagrange;
-   BezierData bezier;
 } InterpolData;
 
 /** Structure retournee par les fonctions initialisant les methodes
@@ -91,7 +84,7 @@ typedef struct {
     * l'interpolation.
     * @pre Les donnees correspondant a la methode d'interpolation.
     */
-   double (*destruct)(InterpolData data);
+   void (*destruct)(InterpolData data);
 } Interpol;
 
 /** Retourne l'ordonnee du point donne en argument en utilisant la methode et
@@ -111,27 +104,23 @@ void freeInterpol(Interpol interpol);
  *       interpolations (au moins deux points). Les points doivent etre donnes 
  *       en abscisse croissante ;
  * @post les donnees a utiliser pour interpoler un point avec la fonction
- *       interpolate.
+ *       interpolate().
  */
-Interpol linearInterpol(int n, const double xs[], const double ys[]);
+Interpol linearInterpol(int n, const Point ps[]);
 
 /** @pre Le nombre, les coordonnees et les tangentes des points a utiliser
  *       durant les interpolations (au moins deux points). Les points doivent
  *       etre donnes en abscisse croissante ;
  * @post les donnees a utiliser pour interpoler un point avec la fonction
- *       interpolate.
+ *       interpolate().
  */
-Interpol splineInterpol(
-   int n, const double xs[], const double ys[], const double ms[]
-);
+Interpol splineInterpol(int n, const PointDer ps[]);
 
 /** @pre Le nombre et les coordonnees des points a utiliser durant les
  *       interpolations (au moins un point) ;
  * @post les donnees a utiliser pour interpoler un point avec la fonction
- *       interpolate.
+ *       interpolate().
  */
-Interpol lagrangeInterpol(int n, const double xs[], const double ys[]);
-
-Interpol bezierInterpol(int n, const double xs[], const double ys[]);
+Interpol lagrangeInterpol(int n, const Point ps[]);
 
 #endif
