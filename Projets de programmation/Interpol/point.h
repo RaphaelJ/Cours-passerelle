@@ -24,7 +24,7 @@ typedef struct {
 
 /** Trie les n points ps par ordre croissant d'abcisse. 
  */
-void pointSort(int n, Point ps[]);
+void pointsSort(int n, Point ps[]);
 
 /** Compare deux points par leur abcisse.
  * @post Retourne un nombre negatif si x1 < x2, 0 si x1 == x2 et un nombre 

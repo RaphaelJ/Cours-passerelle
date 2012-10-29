@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
       if (n >= 2)
       {
          // Trie les points par ordre croissant d'abcisse.
-         pointSort(n, ps);
+         pointsSort(n, ps);
 
          // Interpolation lineaire
          interpol = linearInterpol(n, ps);
