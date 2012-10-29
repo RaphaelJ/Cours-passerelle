@@ -65,8 +65,8 @@ static void bezierCurveRec(int n, Point ps[], int m, Point curve[])
          linePrec = line;
       }
 
-      /* Ajoute le dernier point calcule dans la matrice a la liste des points
-       * a tracer. */
+      /* Ajoute le dernier point calcule au milieu de la matrice des points a
+       * tracer. Ainsi, les points seront ordonnes a la fin de l'execution. */
       int middle = m / 2;
       curve[middle] = linePrec[0];
       m--;
@@ -75,14 +75,16 @@ static void bezierCurveRec(int n, Point ps[], int m, Point curve[])
        * Chacun des deux sous-ensembles va tracer la moitie des points restants
        * a tracer. */
 
-      // Recurse sur l'ensemble ps[i] = matrix[i][0]
+      /* Recurse sur l'ensemble ps[i] = matrix[i][0] et ajoute a la gauche du
+       * tableau de trace. */
       for (int i = 0; i < n; i++)
          ps[i] = *(matrix + i * n);
 
       int mLeft = m / 2 + m % 2;
       bezierCurveRec(n, ps, mLeft, curve);
 
-      // Recurse sur l'ensemble ps[i] = matrix[n-1-i][i]
+      /* Recurse sur l'ensemble ps[i] = matrix[n-1-i][i] et ajoute a la gauche
+       * du tableau de trace. */
       for (int i = 0; i < n; i++)
          ps[i] = *(matrix + (n - 1 - i) * n + i);
 

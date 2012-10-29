@@ -22,12 +22,12 @@ typedef struct {
    double x, y, m;
 } PointDer;
 
-/** Trie les n points ps par ordre croissant d'abcisse. 
+/** Trie les n points ps par ordre croissant d'abcisse.
  */
 void pointsSort(int n, Point ps[]);
 
 /** Compare deux points par leur abcisse.
- * @post Retourne un nombre negatif si x1 < x2, 0 si x1 == x2 et un nombre 
+ * @post Retourne un nombre negatif si x1 < x2, 0 si x1 == x2 et un nombre
  *       positif si x1 > x2.
  */
 int pointCmp(const void *p1, const void *p2);

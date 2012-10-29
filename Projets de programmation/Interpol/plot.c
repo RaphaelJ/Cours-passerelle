@@ -28,20 +28,20 @@ static void showAndSaveGraph(
 );
 
 void plotInterpol(
-     Interpol interpol, char title[], double x1, double x2, int n
+     Interpol interpol, char title[], double x1, double x2, int m
    , const char outputPath[]
 )
 {
    assert (x2 > x1);
-   assert (n >= 1);
+   assert (m >= 1);
 
    // Calcule les interpolations dans les vecteurs xs et ys.
-   double dx = (x2 - x1) / n;
-   double *xs = (double *) malloc(sizeof (double) * n);
-   double *ys = (double *) malloc(sizeof (double) * n);
+   double dx = (x2 - x1) / m;
+   double *xs = (double *) malloc(sizeof (double) * m);
+   double *ys = (double *) malloc(sizeof (double) * m);
    assert (xs != NULL && ys != NULL);
 
-   for (int i = 0; i < n; i++)
+   for (int i = 0; i < m; i++)
    {
       double x = x1 + dx * i;
 
@@ -49,7 +49,7 @@ void plotInterpol(
       ys[i] = interpolate(interpol, x);
    }
 
-   showAndSaveGraph(n, xs, ys, title, outputPath);
+   showAndSaveGraph(m, xs, ys, title, outputPath);
 
    free(xs);
    free(ys);
@@ -60,6 +60,7 @@ void plotBezier(
 )
 {
    assert (n >= 1);
+   assert (m >= 1);
 
    Point *curve = bezierCurve(n, ps, m);
 

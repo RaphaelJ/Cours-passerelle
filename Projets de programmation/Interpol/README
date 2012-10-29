@@ -7,3 +7,14 @@ http://www.montefiore.ulg.ac.be/~info0030/files/interpolation.pdf
 
 Le projet se compile avec make et cree un executable nomme "main".
 L'executable main permet d'effectuer les exemples donnees dans l'enonce.
+
+Le programme effectue tous les traces possibles en fonction du type de fichier
+de donnees fourni (il n'effectue pas l'interpolation de Lagrange si la derivee
+n'est pas donnee).
+
+Apres avoir affiche le trace, le programme sauvegarde celui-ci dans un .png.
+Le .png se nomme comme le fichier de donnees, avec en suffixe le nom de la 
+methode utilisee.
+Ainsi, si le programme est lance sur le fichier bezier1.txt, les fichiers
+bezier1.txt-bezier.png, bezier1.txt-lagrange.png et bezier1.txt-lineaire.png 
+seront crees dans le meme repertoire que le fichier de donnnes.

@@ -2,7 +2,7 @@
  * Raphael Javaux - Octobre 2012.
  *
  * Ce fichier effectue le parsing des arguments donnes par la ligne de
- * commandes, lit les fichiers des donnes et lance les traces adaptes.
+ * commandes, lit les fichiers des donnees et lance les traces adaptes.
  */
 
 #include <assert.h>
@@ -21,14 +21,14 @@ static void usage(void);
 /** Retourne le nouveau nom de fichier qui va contenir l'image du graphique
  * a partir du nom du fichier de donnees et du nom de la methode
  * d'interpolation.
- * @post <path>-<method>.ps ou path est le nom du fichier de donnes et method
+ * @post <path>-<method>.png ou path est le nom du fichier de donnes et method
  *       le nom de la methode d'interpolation.
  */
 static char *outputPath(const char *path, const char *method);
 
 /** Lit les donnees du fichier path.
  * @post Les points dans ps et les eventuels points avec derivee dans pds
- *       (pds sera un pointer vers NULL si les derivees ne sont pas connues).
+ *       (*pds sera un pointeur vers NULL si les derivees ne sont pas connues).
  *       Retourne le nombre de points lus.
  */
 static int readData(const char *path, Point **ps, PointDer **pds);
@@ -43,8 +43,10 @@ int main(int argc, char *argv[])
       Point *ps = NULL;
       PointDer *pds = NULL;
       int n = readData(argv[1], &ps, &pds);
+      assert (n > 0);
 
       int nPlot = atoi(argv[2]);
+      assert (nPlot > 0);
 
       // Effectue les interpolations
       Interpol interpol;
