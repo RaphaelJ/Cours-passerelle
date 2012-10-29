@@ -9,7 +9,7 @@ Le projet se compile avec make et cree un executable nomme "main".
 L'executable main permet d'effectuer les exemples donnees dans l'enonce.
 
 Le programme effectue tous les traces possibles en fonction du type de fichier
-de donnees fourni (il n'effectue pas l'interpolation de Lagrange si la derivee
+de donnees fourni (il n'effectue pas l'interpolation par splines si la derivee
 n'est pas donnee).
 
 Apres avoir affiche le trace, le programme sauvegarde celui-ci dans un .png.
