@@ -5,19 +5,20 @@
  * fonctions d'interpolations.
  */
 
+#include <assert.h>
 #include <string.h>
 
 #include "interpolations.h"
 
 /** @pre Les donnees d'interpolation lineaire et un point dans le domaine
- *       d'interpolation ;
+ *       d'interpolation (X dans [X1, Xn]) ;
  * @post le point a l'ordonnee correspondante estimee.
  */
 static double linearFct(InterpolData data, double x);
 
 /** @pre Les donnees de l'interpolation lineaire a liberer.
  */
-static double linearDestruct(InterpolData data);
+static void linearDestruct(InterpolData data);
 
 /** Comparateur utilise pour la recherche dicotomique de la section d'une
  * interpolation lineaire.
@@ -31,14 +32,14 @@ static int linearSectionCmp(const void *vX, const void *vSection);
 
 
 /** @pre Les donnees d'interpolation par spline et un point dans le domaine
- *       d'interpolation ;
+ *       d'interpolation (X dans [X1, Xn]) ;
  * @post le point a l'ordonnee correspondante estimee.
  */
 static double splineFct(InterpolData data, double x);
 
 /** @pre Les donnees de l'interpolation par spline a liberer.
  */
-static double splineDestruct(InterpolData data);
+static void splineDestruct(InterpolData data);
 
 /** Comparateur utilise pour la recherche dicotomique de la section d'une
  * interpolation par spline.
@@ -51,16 +52,15 @@ static double splineDestruct(InterpolData data);
 static int splineSectionCmp(const void *vX, const void *vSection);
 
 
-/** @pre Les donnees d'interpolation de Lagrange et un point dans le domaine
- *       d'interpolation ;
+/** @pre Les donnees d'interpolation de Lagrange et l'abscisse d'un point a 
+ *       interpoler ;
  * @post le point a l'ordonnee correspondante estimee.
  */
 static double lagrangeFct(InterpolData data, double x);
 
 /** @pre Les donnees de l'interpolation de Lagrange a liberer.
  */
-static double lagrangeDestruct(InterpolData data);
-
+static void lagrangeDestruct(InterpolData data);
 
 double interpolate(Interpol interpol, double x)
 {
@@ -72,25 +72,25 @@ void freeInterpol(Interpol interpol)
    interpol.destruct(interpol.data);
 }
 
-Interpol linearInterpol(int n, const double xs[], const double ys[])
+Interpol linearInterpol(int n, const Point ps[])
 {
    assert (n >= 2);
 
    LinearData data = {
         .n = n - 1
-      , sections = (LinearSection *) malloc(sizeof (LinearSection) * (n - 1))
+      , .sections = (LinearSection *) malloc(sizeof (LinearSection) * (n - 1))
    };
    assert (data.sections != NULL);
 
    // Calcule la pente de chaque section et copie les coordonnes.
-   for (int i = 0; i < (n - 1); i++)
+   for (int i = 0; i < data.n; i++)
    {
-      double x1 = xs[i], x2 = xs[i + 1]
-           , y1 = ys[i], y2 = ys[i + 1];
-      assert (x2 > x1);
+      Point p1 = ps[i]
+          , p2 = ps[i + 1];
+      assert (p2.x > p1.x);
 
-      data.sections[i] = {
-         .x1 = x1, .x2 = x2, .y1 = y1, .m = (y2 - y1) / (x2 - x1)
+      data.sections[i] = (LinearSection) {
+         .x1 = p1.x, .x2 = p2.x, .y1 = p1.y, .m = (p2.y - p1.y) / (p2.x - p1.x)
       };
    }
 
@@ -103,7 +103,8 @@ static double linearFct(InterpolData data, double x)
 {
    // Recherche la section par une recherche dicotomique.
    LinearSection *section = bsearch(
-      &x, data.linear.sections, n, sizeof (LinearSection), linearSectionCmp
+        &x, data.linear.sections, data.linear.n, sizeof (LinearSection)
+      , linearSectionCmp
    );
 
    assert (section != NULL); // x doit etre dans le domaine de l'interpolation.
@@ -111,7 +112,7 @@ static double linearFct(InterpolData data, double x)
    return section->m * (x - section->x1) + section->y1;
 }
 
-static double linearDestruct(InterpolData data)
+static void linearDestruct(InterpolData data)
 {
    free(data.linear.sections);
 }
@@ -129,9 +130,7 @@ static int linearSectionCmp(const void *vX, const void *vSection)
       return 0;
 }
 
-Interpol splineInterpol(
-   int n, const double xs[], const double ys[], const double ms[]
-)
+Interpol splineInterpol(int n, const PointDer ps[])
 {
    assert (n >= 2);
 
@@ -142,15 +141,14 @@ Interpol splineInterpol(
    assert (data.sections != NULL);
 
    // Copie les coordonnes.
-   for (int i = 0; i < (n - 1); i++)
+   for (int i = 0; i < data.n; i++)
    {
-      double x1 = xs[i], x2 = xs[i + 1]
-           , y1 = ys[i], y2 = ys[i + 1]
-           , m1 = ms[i], m2 = ms[i + 1];
-      assert (x2 > x1);
+      PointDer p1 = ps[i]
+             , p2 = ps[i + 1];
+      assert (p2.x > p1.x);
 
-      data.sections[i] = {
-         .x1 = x1, .x2 = x2, .y1 = y1, .m1 = m1, .m2 = m2
+      data.sections[i] = (SplineSection) {
+         .p1 = p1, .p2 = p2
       };
    }
 
@@ -162,17 +160,18 @@ Interpol splineInterpol(
 static double splineFct(InterpolData data, double x)
 {
    // Recherche la section par une recherche dicotomique.
-   SplineSection *sect = bsearch(
-      &x, data.spline.sections, n, sizeof (SplineSection), splineSectionCmp
+   SplineSection *section = bsearch(
+        &x, data.spline.sections, data.spline.n, sizeof (SplineSection)
+      , splineSectionCmp
    );
 
    assert (section != NULL); // x doit etre dans le domaine de l'interpolation.
 
-   double x1 = section->x1, x2 = section->x2
-        , m1 = section->m1, m2 = section->m2;
+   PointDer p1 = section->p1
+          , p2 = section->p2;
 
-   double dx = x2 - x1;
-   double t = (x - x1) / dx;
+   double dx = p2.x - p1.x;
+   double t = (x - p1.x) / dx;
 
    // Calcule les termes recurrents
    double a = t * t; // a = t^2
@@ -183,12 +182,12 @@ static double splineFct(InterpolData data, double x)
 
    // Calcule les polynomes
    double h00 = c - d + 1, h10 = b - e + t
-        , h01 = -c + b   , h11 = b - a;
+        , h01 = -c + d   , h11 = b - a;
 
-   return h00 * y1 + h10 * dx * m1 + h01 * y2 + h11 * dx * m2;
+   return h00 * p1.y + h10 * dx * p1.m + h01 * p2.y + h11 * dx * p2.m;
 }
 
-static double splineDestruct(InterpolData data)
+static void splineDestruct(InterpolData data)
 {
    free(data.spline.sections);
 }
@@ -198,29 +197,26 @@ static int splineSectionCmp(const void *vX, const void *vSection)
    double x = *((double *) vX);
    SplineSection section = *((SplineSection *) vSection);
 
-   if (x < section.x1)
+   if (x < section.p1.x)
       return -1;
-   else if (x > section.x2)
+   else if (x > section.p2.x)
       return +1;
    else
       return 0;
 }
 
 
-Interpol lagrangeInterpol(int n, const double xs[], const double ys[])
+Interpol lagrangeInterpol(int n, const Point ps[])
 {
    assert (n >= 1);
 
    LagrangeData data = {
-        .n = n
-      , .xs = (double *) malloc(sizeof (double) * n)
-      , .ys = (double *) malloc(sizeof (double) * n)
+        .n = n, .ps = (Point *) malloc(sizeof (Point) * n)
    };
-   assert (data.xs != NULL && data.ys != NULL);
+   assert (data.ps != NULL);
 
    // Copie les coordonnes localement.
-   memcpy(data.xs, xs, sizeof (double) * n);
-   memcpy(data.ys, ys, sizeof (double) * n);
+   memcpy(data.ps, ps, sizeof (Point) * n);
 
    return (Interpol) {
       .data.lagrange = data, .fct = lagrangeFct, .destruct = lagrangeDestruct
@@ -229,19 +225,20 @@ Interpol lagrangeInterpol(int n, const double xs[], const double ys[])
 
 static double lagrangeFct(InterpolData data, double x)
 {
-   const double *xs = data.lagrange.xs, *ys = data.lagrange.ys;
+   const Point *ps = data.lagrange.ps;
+
 
    double sum = 0;
-   for (int i = 0; i < data.lagrange.n, i++)
+   for (int i = 0; i < data.lagrange.n; i++)
    {
       // Calcule la produit des (n-1) polynomes et l'ajoute a la somme
-      double product = ys[i]
-           , xi = xs[i];
-      for (int j = 0; j < data.lagrange.n; i++)
+      double product = ps[i].y
+           , xi = ps[i].x;
+      for (int j = 0; j < data.lagrange.n; j++)
       {
          if (j != i)
          {
-            double xj = xs[j];
+            double xj = ps[j].x;
             product *= (x - xj) / (xi - xj);
          }
       }
@@ -251,8 +248,7 @@ static double lagrangeFct(InterpolData data, double x)
    return sum;
 }
 
-static double lagrangeDestruct(InterpolData data)
+static void lagrangeDestruct(InterpolData data)
 {
-   free(data.lagrange.xs);
-   free(data.lagrange.ys);
+   free(data.lagrange.ps);
 }

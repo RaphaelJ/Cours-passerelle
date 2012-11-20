@@ -2,70 +2,100 @@
  * Raphael Javaux - Octobre 2012.
  *
  * Ce fichier effectue le parsing des arguments donnes par la ligne de
- * commandes et effectue les transformations appropriees.
+ * commandes, lit les fichiers des donnees et lance les traces adaptes.
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <assert.h>
-
-#include "pgm.h"
-#include "processing.h"
+#include "point.h"
+#include "interpolations.h"
+#include "plot.h"
 
 /** Affiche un message d'aide detaillant l'utilisation du programme.
  */
 static void usage(void);
 
-/** Retourne le nouveau nom de fichier auquel filterName a ete rajoute.
- * @pre path se termine par l'extension .pgm ;
- * @post basepath-<filterName>.pgm ou basepath est le chemin donne en entree
- *       ou l'extension .pgm a ete retiree.
+/** Retourne le nouveau nom de fichier qui va contenir l'image du graphique
+ * a partir du nom du fichier de donnees et du nom de la methode
+ * d'interpolation.
+ * @post <path>-<method>.png ou path est le nom du fichier de donnes et method
+ *       le nom de la methode d'interpolation.
  */
-static char *newImagePath(const char *path, const char *filterName);
+static char *outputPath(const char *path, const char *method);
+
+/** Lit les donnees du fichier path.
+ * @post Les points dans ps et les eventuels points avec derivee dans pds
+ *       (*pds sera un pointeur vers NULL si les derivees ne sont pas connues).
+ *       Retourne le nombre de points lus.
+ */
+static int readData(const char *path, Point **ps, PointDer **pds);
 
 int main(int argc, char *argv[])
 {
-   if (argc <= 2)
+   if (argc < 3)
       usage();
    else
    {
-      PGM img = readPGM(argv[1]);
+      // Lit les donnees
+      Point *ps = NULL;
+      PointDer *pds = NULL;
+      int n = readData(argv[1], &ps, &pds);
+      assert (n > 0);
 
-      if (argc == 3 && strcmp(argv[2], "recopie") == 0)
-      {
-         char *newPath = newImagePath(argv[1], "recopie");
-         writePGM(newPath, img);
-         free(newPath);
-      }
-      else if (argc == 4 && strcmp(argv[2], "luminosite") == 0)
-      {
-         char *newPath = newImagePath(argv[1], "luminosite");
-         brightness(img, atoi(argv[3]));
-         writePGM(newPath, img);
-         free(newPath);
-      }
-      else if (argc == 4 && strcmp(argv[2], "diffusion") == 0)
-      {
-         char *newPath = newImagePath(argv[1], "diffusion");
-         PGM newImg = diffuse(img, atoi(argv[3]));
-         writePGM(newPath, newImg);
-         free(newPath);
-         freePGM(newImg);
-      }
-      else if (argc == 5 && strcmp(argv[2], "echelle") == 0)
-      {
-         char *newPath = newImagePath(argv[1], "echelle");
-         PGM newImg = rescale(img, atoi(argv[4]), atoi(argv[3]));
-         writePGM(newPath, newImg);
-         free(newPath);
-         freePGM(newImg);
-      }
-      else
-         usage();
+      int nPlot = atoi(argv[2]);
+      assert (nPlot > 0);
 
-      freePGM(img);
+      // Effectue les interpolations
+      Interpol interpol;
+      char *path;
+
+      if (n >= 2)
+      {
+         // Trie les points par ordre croissant d'abcisse.
+         pointsSort(n, ps);
+
+         // Interpolation lineaire
+         interpol = linearInterpol(n, ps);
+         path = outputPath(argv[1], "lineaire");
+         plotInterpol(
+            interpol, "Interpolation lineaire", ps[0].x, ps[n-1].x, nPlot, path
+         );
+         free(path);
+         freeInterpol(interpol);
+
+         if (pds != NULL)
+         {
+            // Interpolation par spline
+            interpol = splineInterpol(n, pds);
+            path = outputPath(argv[1], "spline");
+            plotInterpol(
+                 interpol, "Interpolation par spline", ps[0].x, ps[n-1].x, nPlot
+               , path
+            );
+            free(path);
+            freeInterpol(interpol);
+         }
+      }
+
+      // Interpolation de Lagrange
+      interpol = lagrangeInterpol(n, ps);
+      path = outputPath(argv[1], "lagrange");
+      plotInterpol(
+         interpol, "Interpolation de Lagrange", ps[0].x, ps[n-1].x, nPlot, path
+      );
+      free(path);
+      freeInterpol(interpol);
+
+      // Courbe de Bezier
+      path = outputPath(argv[1], "bezier");
+      plotBezier(n, ps, "Courbe de Bezier", nPlot, path);
+      free(path);
+
+      free(ps);
+      free(pds); // free(NULL) ne fait rien
    }
 
    return 0;
@@ -74,27 +104,76 @@ int main(int argc, char *argv[])
 static void usage(void)
 {
    printf(
-      "Applique des filtres simples sur des images au format PGM.\n"
-      "USAGE: ./main <image> recopie\n"
-      "       ./main <image> luminosite <facteur>\n"
-      "       ./main <image> diffusion <passes>\n"
-      "       ./main <image> echelle <hauteur> <largeur>\n"
+      "Trace l'interpolation d'une fonction dont les valeurs se trouvent\n"
+      "dans un fichier de donnees.\n"
+      "USAGE: ./main <fichier de donnees> <nombre de points>\n"
    );
 }
 
-static char *newImagePath(const char *path, const char *filterName)
+static char *outputPath(const char *path, const char *method)
 {
-   // Verifie que le nom de fichier se termine par .pgm.
    size_t len = strlen(path);
-   assert (strcmp(path + (len - 4), ".pgm") == 0);
 
    // Compose le nouveau nom du fichier
-   size_t lenFilter = strlen(filterName);
-   char *new = malloc(sizeof (char) * (len + lenFilter + 2));
-   strncpy(new, path, len - 4);
-   new[len - 4] = '-';
-   strcpy(new + len - 3, filterName);
-   strcpy(new + len - 3 + lenFilter, ".pgm");
+   size_t lenMethod = strlen(method);
+   char *new = malloc(sizeof (char) * (len + lenMethod + 6));
+   assert (new);
+   sprintf(new, "%s-%s.png", path, method);
 
    return new;
+}
+
+static int readData(const char *path, Point **ps, PointDer **pds)
+{
+   FILE *f = fopen(path, "r");
+   assert (f);
+
+   char line[255];
+
+   // Lit le nombre de points.
+   int n;
+   fgets(line, 255, f);
+   sscanf(line, "%d", &n);
+
+   *ps = (Point *) malloc(sizeof (Point) * n);
+   assert (*ps);
+
+   // Lit le premier point pour verifier si les tengentes sont fournies.
+   PointDer pd;
+   fgets(line, 255, f);
+   int nElems = sscanf(line, "%lf %lf %lf", &pd.x, &pd.y, &pd.m);
+
+   (*ps)[0].x = pd.x;
+   (*ps)[0].y = pd.y;
+
+   if (nElems == 3) // Lit les tangentes et les coordonnes
+   {
+      *pds = (PointDer *) malloc(sizeof (PointDer) * n);
+      assert (*pds);
+
+      (*pds)[0] = pd;
+
+      for (int i = 1; i < n; i++)
+      {
+         fgets(line, 255, f);
+         sscanf(line, "%lf %lf %lf", &(*pds)[i].x, &(*pds)[i].y, &(*pds)[i].m);
+
+         (*ps)[i].x = (*pds)[i].x;
+         (*ps)[i].y = (*pds)[i].y;
+      }
+   }
+   else // Lit uniquement les coordonnes
+   {
+      (*pds) = NULL;
+
+      for (int i = 1; i < n; i++)
+      {
+         fgets(line, 255, f);
+         sscanf(line, "%lf %lf", &(*ps)[i].x, &(*ps)[i].y);
+      }
+   }
+
+   fclose(f);
+
+   return n;
 }

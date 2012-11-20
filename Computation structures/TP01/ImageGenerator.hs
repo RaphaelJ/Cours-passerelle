@@ -37,8 +37,8 @@ main = do
                             putStr $ "LONG(" ++ show word ++ ") "
                         putStrLn padding
 
-                    putStrLn $ "IMW: LONG(" ++ show screenWidth ++ ")"
-                    putStrLn $ "IMH: LONG(" ++ show h ++ ")"
+                    putStrLn $ "w: LONG(" ++ show screenWidth ++ ")"
+                    putStrLn $ "h: LONG(" ++ show h ++ ")"
         _ ->
             putStrLn "Usage : ./ImageGenerator <image path>"
   where
