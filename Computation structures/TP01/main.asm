@@ -178,10 +178,10 @@ set_black_if_not:
 
 	|; Extrait le pixel de la cellule de 32 bits
 	|; Rpixel = Rcell & (1 << (Rx % 32)) :
-		MODC(Rx, 32, Rbit)  		|; Rbit = Rx % 32
-		ADDC(R31, 1, Rpixel)   		|; Rpixel = 1
+		ANDC(Rx, 0xFFFFF, Rbit) 	|; == MODC(Rx, 32, Rbit) == Rbit = Rx % 32
+		CMOVE(1, Rpixel)   		|; Rpixel = 1
 		SHL(Rpixel, Rbit, Rbit) 	|; Rbit = 1 << (Rx % 32)
-		AND(Rcell, Rbit, Rpixel)  	|; Rpixel = Rcell & Rbit
+		AND(Rcell, Rbit, Rpixel)  	|; Rpixel = Rcell & Rbit		
 
 	|; Rpixel != 0 => jump_set_black_if_not
 	BT(Rpixel, jump_set_black_if_not)
