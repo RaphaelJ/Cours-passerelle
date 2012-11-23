@@ -19,7 +19,7 @@ int main(void)
     scanf("%d", &n);
 
     // Reads and stores the points.
-    POINT *points = malloc(sizeof (POINT) * n);
+    POINT *points = (POINT *) malloc(sizeof (POINT) * n);
     for (int i = 0; i < n; i++)
         scanf("%lf %lf", &points[i].x, &points[i].y);
 
