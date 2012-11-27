@@ -1,6 +1,6 @@
 EXEC = polygon
 
-# CC = clang
+#CC = clang
 CC = gcc
 CFLAGS  = --std=c99 --pedantic -Wall -W -Wmissing-prototypes -O2
 LDFLAGS =

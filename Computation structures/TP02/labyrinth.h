@@ -5,14 +5,16 @@
  * coté ainsi que la structure de données associée.
  */
 
-#ifndef LABYRINTHE_H
-#define LABYRINTHE_H
+#ifndef LABYRINTH_H
+#define LABYRINTH_H
 
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <cinttypes.h>
 #include <stdbool.h>
+
+const int LABYRINTH_SIZE = 12;
 
 // Chaque case du labyrinthe est représentée par un entier non signé indiquant
 // sa couleur et l'état (ouvert/fermé) des quatre murs entourant celle-ci.
@@ -27,8 +29,9 @@ const uint32_t WALLS_MASK = 0xF0000000;
 
 // Liste les murs possibles autour d'une cellule.
 typedef enum : uint32_t {
-      TOP    = 0x80000000, RIGHT  = 0x40000000 // Chaque mur est associé à un
-    , BOTTOM = 0x20000000, LEFT   = 0x10000000 // masque lié à son bit.
+    // Chaque mur est associé à un masque lié à son bit.
+      WALL_TOP    = 0x80000000, WALL_RIGHT  = 0x40000000
+    , WALL_BOTTOM = 0x20000000, WALL_LEFT   = 0x10000000
 } WALL;
 
 // Retourne l'entier identifiant la couleur de la cellule.
@@ -46,5 +49,9 @@ void set_wall(CELL *cell, WALL wall_type);
 
 // Ouvre le mur donné d'une cellule. Ne fait rien si le mur n'existe pas.
 void remove_wall(CELL *cell, WALL wall_type);
+
+// Génère un labyrinthe où toutes les cellules sont entièrement fermées.
+// Chaque cellule s'est vue attribuée une couleur différente.
+CELL *init_labyrinth()
 
 #endif
