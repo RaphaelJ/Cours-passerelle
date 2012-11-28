@@ -1,4 +1,4 @@
-EXEC = polygon
+EXEC = labyrinth
 
 CC = clang
 # CC = gcc
