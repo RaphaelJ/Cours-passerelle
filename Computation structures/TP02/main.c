@@ -12,7 +12,7 @@
 
 int main(void)
 {
-    LABYRINTH labyrinth = init_labyrinth();
+    LABYRINTH labyrinth = gen_labyrinth();
 
     show_labyrinth(labyrinth);
 

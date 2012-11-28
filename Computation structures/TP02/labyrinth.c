@@ -7,6 +7,8 @@
 
 #include <assert.h>
 
+#include <sys/msg.h>
+
 #include "labyrinth.h"
 
 const int LABYRINTH_SIZE = 12;
@@ -61,6 +63,22 @@ LABYRINTH init_labyrinth(void)
     return labyrinth;
 }
 
+LABYRINTH gen_labyrinth(void)
+{
+    LABYRINTH labyrinth = init_labyrinth();
+
+    // Crée quatre files de messages pour les 4 processus générateurs.
+    int queues_walls = msgget(IPC_PRIVATE, 4, 0600);
+    assert (queues_walls != -1);
+
+    // Crée une sémaphore qui va compter le nombre de murs qu'il reste a ouvrir
+    int sem_nwalls = semget(IPC_PRIVATE, 4, 0600);
+
+    assert (semctl(sems_walls, 0, IPC_RMID));
+    assert (semctl(sems_nwalls, 0, IPC_RMID));
+    return labyrinth;
+}
+
 void show_labyrinth(const LABYRINTH labyrinth)
 {
     for (int ln = 0; ln < LABYRINTH_SIZE; ln++) {
@@ -69,18 +87,18 @@ void show_labyrinth(const LABYRINTH labyrinth)
         // Dessine les bordures supérieures de la ligne.
         for (int col = 0; col < LABYRINTH_SIZE; col++) {
             if (is_wall(line[col], WALL_TOP))
-                printf(" ―");
+                printf(" ――");
             else
-                printf("  ");
+                printf("   ");
         }
         putchar('\n');
 
         // Dessine les bordures latérales des cellules de la ligne
         for (int col = 0; col < LABYRINTH_SIZE; col++) {
             if (is_wall(line[col], WALL_LEFT))
-                printf("| ");
+                printf("|  ");
             else
-                printf("  ");
+                printf("   ");
         }
         if (is_wall(line[LABYRINTH_SIZE - 1], WALL_RIGHT))
             putchar('|');
@@ -92,14 +110,9 @@ void show_labyrinth(const LABYRINTH labyrinth)
     const CELL *last = labyrinth + LABYRINTH_SIZE * (LABYRINTH_SIZE - 1);
     for (int col = 0; col < LABYRINTH_SIZE; col++) {
         if (is_wall(last[col], WALL_BOTTOM))
-            printf(" ―");
+            printf(" ――");
         else
-            printf("  ");
+            printf("   ");
     }
     putchar('\n');
 }
-
-// void gen_labyrinth()
-// {
-//     
-// }

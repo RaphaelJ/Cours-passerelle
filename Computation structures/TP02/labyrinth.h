@@ -55,6 +55,10 @@ void remove_wall(CELL *cell, WALL wall_type);
 // Chaque cellule s'est vue attribuée une couleur différente.
 LABYRINTH init_labyrinth(void);
 
+// Génère un labyrinthe parfait de manière aléatoire sur 4 processus 
+// indépendants.
+LABYRINTH gen_labyrinth(void);
+
 // Affiche un labyrinthe sur la sortie standard.
 void show_labyrinth(const LABYRINTH labyrinth);
 #endif
