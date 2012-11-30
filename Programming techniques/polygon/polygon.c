@@ -37,7 +37,7 @@ void polygon(POINT *points[], size_t n)
     // Uses the leftmost point as the first point of the polygon.
     // Sort the remainder of the vector by comparing the relative slope of each
     // point to this first point.
-    qsort_r(points + 1, n - 1, sizeof (POINT *), point_cmp, (void *) points);
+    qsort_r(points + 1, n - 1, sizeof (POINT *), point_cmp, (void *) points[0]);
 
     // By selecting the leftmost point, I'm able to compare points by their
     // slopes instead of their angles (because I don't care in which side of the
@@ -51,11 +51,11 @@ static int point_cmp(const void *v_pt1, const void *v_pt2, void* v_first)
 {
     POINT *pt1 = *((POINT **) v_pt1)
         , *pt2 = *((POINT **) v_pt2)
-        , *first = *((POINT **) v_first);
+        , first = *((POINT *) v_first);
 
     // Computes the coordinates of the two points relative to the first point.
-    double dx1 = pt1->x - first->x, dy1 = pt1->y - first->y
-         , dx2 = pt2->x - first->x, dy2 = pt2->y - first->y;
+    double dx1 = pt1->x - first.x, dy1 = pt1->y - first.y
+         , dx2 = pt2->x - first.x, dy2 = pt2->y - first.y;
 
     // Compares the slope between two points.
     // Comparing y1 / x1 to y2 / x2 is the same as comparing y1 * x2 to y2 * x1

@@ -8,8 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <assert.h>
-
 #include "polygon.h"
 
 int main(void)

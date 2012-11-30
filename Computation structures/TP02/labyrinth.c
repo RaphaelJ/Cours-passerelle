@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
+#include <sys/wait.h>
 
 #include "labyrinth.h"
 
@@ -115,36 +116,22 @@ void init_labyrinth(LABYRINTH labyrinth)
 
 LABYRINTH gen_labyrinth(PARAL_STATS *stats)
 {
-    
-    
-    // Crée quatre files de messages pour les quatre processus générateurs.
-    int queues_walls = msgget(IPC_PRIVATE, 4, 0600);
-    assert (queues_walls != -1);
-
-    // Crée quatre sémaphores qui vont permettre au processus principal
-    // d'attendre qu'il n'y aie plus de murs à effacer sur les quatres processus
-    // générateurs avant de mettre fin à ceux-ci.
-    // Initialise les quatre sémaphores à 0. Elles seronts mises à 1 par chaque
-    // processus lorsqu'il aura fini son travail d'ouverture de mur et qu'il
-    // sera uniquement en train d'attendre des remplissages à effectuer pour
-    // d'autres processus.
-    int sem_gens = semget(IPC_PRIVATE, 4, 0600);
-    assert (sem_gens != -1);
-    struct sembuf sbuf[4] = {
-        { 0, 1, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 3, 1, 0 }
-    };
-    assert (semop(sem_gens, &sbuf, 4) != -1);
-
     // Crée une sémaphore qui sera utilisée comme mutex pour empêcher plusieurs
     // processus générateurs de supprimer en même temps une bordure entre deux
     // groupes de cellules qui est sont accessibles par plusieurs processus.
-    int sem_labyrinth = semget(IPC_PRIVATE, 4, 0600);
-    assert (sem_gens != -1);
+    int sem_labyrinth = semget(IPC_PRIVATE, 1, 0600);
+    assert (sem_labyrinth != -1);
     struct sembuf sbuf = { 0, 1, 0 };
-    assert (semop(sem_gens, &sbuf, 4) != -1);
-    
+    assert (semop(sem_labyrinth, &sbuf, 1) != -1);
 
-    // Ouvre une mémoire partagée pour stocker le labyrinthe.
+    // Ouvre une mémoire partagée pour stocker les statistiques de l'exécution
+    // parallèle.
+    int shm_stats = shmget(IPC_PRIVATE, sizeof (PARAL_STATS), 0600);
+    assert (shm_stats != -1);
+    PARAL_STATS *sh_stats = (PARAL_STATS *) shmat(shm_stats, NULL, 0);
+    assert (sh_stats != -1);
+
+    // Crée une mémoire partagée pour stocker le labyrinthe.
     int shm_labyrinth = shmget(
         IPC_PRIVATE, sizeof (CELL) * LABYRINTH_SIZE * LABYRINTH_SIZE, 0600
     );
@@ -154,14 +141,18 @@ LABYRINTH gen_labyrinth(PARAL_STATS *stats)
 
     init_labyrinth(sh_labyrinth);
 
+    // Démarre les quatre processuss générateur.
+    int middle = LABYRINTH_SIZE / 2;
+    fork(sem_labyrinth, shm_stats, sh_labyrinth, 0     , 0     );
+    fork(sem_labyrinth, shm_stats, sh_labyrinth, middle, 0     );
+    fork(sem_labyrinth, shm_stats, sh_labyrinth, middle, 0     );
+    fork(sem_labyrinth, shm_stats, sh_labyrinth, middle, middle);
+
     // Attends que toutes les cases des quatre processus soient toutes de la
-    // même couleur. Tue ensuite ces processus.
-    sbuf = { { 0, -1, 0 }, { 1, -1, 0 }, { 2, -1, 0 }, { 3, -1, 0 } };
-    assert (semop(sem_gens, &sbuf, 4) != -1);
-    kill(pid[0], SIGTERM);
-    kill(pid[1], SIGTERM);
-    kill(pid[2], SIGTERM);
-    kill(pid[3], SIGTERM);
+    // même couleur.
+    int childs_status;
+    for (int i = 0; i < 4; i++)
+        wait(&childs_status);
 
     // Copie le labyrinthe dans une mémoire non partagée
     LABYRINTH labyrinth = (LABYRINTH) malloc(
@@ -171,23 +162,41 @@ LABYRINTH gen_labyrinth(PARAL_STATS *stats)
         labyrinth, sh_labyrinth, sizeof (CELL) * LABYRINTH_SIZE * LABYRINTH_SIZE
     );
 
+    // Récupère les statistiques.
+    if (stats != NULL)
+        *stats = *sh_stats;
+
     // Ferme les IPC
-    assert (msgctl(queues_walls, IPC_RMID, NULL) != -1);
-    assert (semctl(sem_gens, 0, IPC_RMID) != -1);
+    assert (semctl(sem_labyrinth, 0, IPC_RMID) != -1);
+    assert (shmctl(shm_stats, IPC_RMID, NULL) != -1);
     assert (shmctl(shm_labyrinth, IPC_RMID, NULL) != -1);
 
     return labyrinth;
 }
 
-static pid_t fork_generator(int generator_id)
+static pid_t fork_generator(
+    int sem_labyrinth, int shm_stats, int sh_labyrinth, int x, int y
+)
 {
     pid_t child = fork();
     if (child != 0) { // Parent
         assert (child != -1);
         return child;
     } else { // Child
-        
+        exit(generator(sem_labyrinth, shm_stats, sh_labyrinth, x, y));
     }
+}
+
+static int generator(
+    int sem_labyrinth, int shm_stats, int sh_labyrinth, int x, int y
+)
+{
+    int middle = LABYRINTH_SIZE / 2;
+    int max_x = x + middle, max_y = y + middle;
+
+    
+
+    return EXIT_SUCCESS;
 }
 
 void show_labyrinth(const LABYRINTH labyrinth)
