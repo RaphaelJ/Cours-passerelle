@@ -48,6 +48,9 @@ const WALL WALL_RIGHT;
 const WALL WALL_BOTTOM;
 const WALL WALL_LEFT;
 
+// Retourne la cellule de la x ième colonne de la y ième ligne du labyrinthe.
+CELL *cell_index(LABYRINTH labyrinth, int x, int y);
+
 // Retourne true si le mur spécifié existe pour la cellule, false s'il est
 // ouvert (= n'existe pas).
 bool is_wall(CELL cell, WALL wall_type);
@@ -86,7 +89,8 @@ LABYRINTH init_labyrinth(void);
 
 // Structure permettant de récupérer les performances de la parallélisation
 // lors de l'exécution de l'algorithme de génération du labyrinthe.
-// 
+// hits contient le nombre de murs supprimés sans blocage global du labyrinthe
+// et misses le nombre supprimés avec un blocage complet.
 typedef struct {
     int hits, misses;
 } PARAL_STATS

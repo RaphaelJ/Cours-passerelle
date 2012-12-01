@@ -7,11 +7,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "labyrinth.h"
 
 int main(void)
 {
+    s_rand(time(NULL));
+
     LABYRINTH labyrinth = gen_labyrinth();
 
     show_labyrinth(labyrinth);
