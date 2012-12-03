@@ -128,12 +128,12 @@ LABYRINTH gen_labyrinth(PARAL_STATS *stats)
 {
     // Crée une sémaphore qui sera utilisée comme mutex pour empêcher plusieurs
     // processus générateurs de supprimer en même temps une bordure entre deux
-    // groupes de cellules qui est sont accessibles par plusieurs processus.
-    // Tous les accès aux cellules partagées (limitrophes) ainsi qu'à leur
-    // groupes respectifs devront se faire en ayant acquis cette mutex.
+    // groupes de cellules qui sont partagés par plusieurs processus.
+    // Tous les accès aux cellules partagées (limitrophes) ainsi qu'à l'ensemble
+    // de leurs groupes respectifs devront se faire en ayant acquis cette mutex.
     int sem_labyrinth = semget(IPC_PRIVATE, 1, 0600);
     assert (sem_labyrinth != -1);
-    struct sembuf sbuf = { 0, 1, 0 };
+    struct sembuf sbuf = { .sem_num = 0, .sem_op = 1, .sem_flg = 0 };
     assert (semop(sem_labyrinth, &sbuf, 1) != -1);
 
     // Ouvre une mémoire partagée pour stocker les statistiques de l'exécution
@@ -142,6 +142,8 @@ LABYRINTH gen_labyrinth(PARAL_STATS *stats)
     assert (shm_stats != -1);
     PARAL_STATS *sh_stats = (PARAL_STATS *) shmat(shm_stats, NULL, 0);
     assert (sh_stats != -1);
+    sh_stats->hits = 0;
+    sh_stats->misses = 0;
 
     // Crée une mémoire partagée pour stocker le labyrinthe.
     int shm_labyrinth = shmget(
@@ -219,7 +221,7 @@ static int generator(
     // partir de la droite du vecteur.
     int n_walls = 2 * middle * middle;
     int last_private = -1
-      , last_shared = n_walls;
+      , first_shared = n_walls;
     CELL walls[n_walls];
 
     semwait(sem_labyrinth); // Accède en lecture à des cellules partagées.
@@ -235,12 +237,12 @@ static int generator(
                , top_shared = is_shared(*(cell - LABYRINTH_SIZE));
 
             if (shared || left_shared)
-                walls[--last_shared] = WALL_LEFT | (CELL) index;
+                walls[--first_shared] = WALL_LEFT | (CELL) index;
             else
                 walls[++last_private] = WALL_LEFT | (CELL) index;
 
             if (shared || top_shared)
-                walls[--last_shared] = WALL_TOP | (CELL) index;
+                walls[--first_shared] = WALL_TOP | (CELL) index;
             else
                 walls[++last_private] = WALL_TOP | (CELL) index;
         }
@@ -253,7 +255,7 @@ static int generator(
 
         // Vérifie que les murs partagés n'ont pas été supprimés par un autre
         // processus et qu'ils départagent toujours deux groupes différents.
-        for (int i = n_walls - 1; i >= last_shared; i--) {
+        for (int i = n_walls - 1; i >= first_shared; i--) {
             CELL wall = walls[i];
             CELL index = wall & GROUP_MASK;
             WALL orientation = wall & WALLS_MASK;
@@ -264,12 +266,12 @@ static int generator(
                    is_wall(cell, orientation)
                 && cell_root(labyrinth, cell) != cell_root(labyrinth, fellow);
 
-            if (!removable) // Mur supprimé
-                walls[i] = walls[last_shared++];
+            if (!removable) // Mur supprimé ou partageant les mêmes groupes.
+                walls[i] = walls[first_shared++];
         }
 
         // Sélectionne au hasard un mur dans les murs restants.
-        int n_remaining = (last_private + 1) + (n_walls - last_shared);
+        int n_remaining = (last_private + 1) + (n_walls - first_shared);
         if (n_remaining == 0) {
             semsignal(sem_labyrinth);
             break;
@@ -303,17 +305,12 @@ static int generator(
             else
                 cell_attach_group(root1, *root2);
 
-            // Supprime le mur de la liste d'attente
-            *(walls + random_index) = *(walls + last_private--);
+            // Supprime le mur de la liste d'attente et des deux cellules.
+            walls[random_index] = walls[last_private--];
+            *cell1 &= ~orientation;
+            *cell2 &= ~orientation_inv(orientation);
 
-            // Vérifie que certains murs privés ne sont pas devenus partagés
-            // lorsque on a lié les deux groupes et que l'un de ces deux-ci
-            // était partagé.
-            if (shared1 || shared2) {
-                for (int i = 0; i <= last_private; i++) {
-                    
-                }
-            }
+            update_private(walls, &last_private);
         } else {
             stats->miss++;
 
@@ -336,6 +333,46 @@ static CELL *cell_fellow(LABYRINTH labyrinth, CELL *cell, WALL orientation)
         return cell + LABYRINTH_SIZE;
     default: // WALL_LEFT
         return cell - 1;
+    }
+}
+
+// Retourne l'orientation opposée d'un mur
+static WALL orientation_inv(WALL orientation)
+{
+    switch (orientation) {
+    case WALL_TOP:
+        return WALL_BOTTOM;
+    case WALL_RIGHT:
+        return WALL_LEFT;
+    case WALL_BOTTOM:
+        return WALL_TOP;
+    default: // WALL_LEFT
+        return WALL_RIGHT;
+    }
+}
+
+// Vérifie que certains murs privés ne partagent pas à présent les mêmes groupes 
+// ou qu'ils ne sont pas devenus partagés lorsque on a lié les deux groupes.
+static void update_private(CELL walls[], int *last_private, int *fir)
+{
+    for (int i = 0; i <= last_private; i++) {
+        CELL wall = walls[i];
+        CELL index = wall & GROUP_MASK;
+        WALL orientation = wall & WALLS_MASK;
+        CELL *cell1 = labyrinth + index;
+        CELL *cell2 = cell_fellow(labyrinth, cell1, orientation);
+        CELL *root1 = cell_root(labyrinth, cell1)
+           , *root2 = cell_root(labyrinth, cell2);
+        bool shared1 = is_shared(*root1)
+           , shared2 = is_shared(*root2);
+
+        if (root1 == root2) // Le mur ne peut plus être supprimé.
+            walls[i] = walls[last_private--];
+        else if (is_shared(*root1) && is_shared(*root2)) {
+            // Déplace le mur dans les murs partagés.
+            walls[++first_shared] = walls[i];
+            walls[i] = walls[last_private--];
+        }
     }
 }
 
