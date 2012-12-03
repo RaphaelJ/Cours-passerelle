@@ -163,18 +163,19 @@ LABYRINTH gen_labyrinth(PARAL_STATS *stats)
     fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, middle, 1     );
     generator     (sem_labyrinth, shm_stats, shm_labyrinth, middle, middle);
 
-    // Attends que toutes les cases des trois enfants soient toutes de la
+    // Attend que toutes les cases des trois enfants soient toutes de la
     // même couleur.
-    int childs_status;
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++) {
+        int childs_status;
         assert (wait(&childs_status) == EXIT_SUCCESS);
+    }
 
     // Copie le résultat hors de la mémoire partagée.
     LABYRINTH ret_labyrinth = (LABYRINTH) malloc(
         sizeof (CELL) * LABYRINTH_SIZE * LABYRINTH_SIZE
     );
     memcpy(
-        ret_labyrinth, labyrinth, 
+        ret_labyrinth, labyrinth,
         sizeof (CELL) * LABYRINTH_SIZE * LABYRINTH_SIZE
     );
 
@@ -209,10 +210,10 @@ static int generator(
     int size = LABYRINTH_SIZE / 2;
 
     // Récupère les mémoires partagées.
-    LABYRINTH labyrinth = (LABYRINTH) shmat(shm_labyrinth, NULL, 0);
-    assert (labyrinth != -1);
     PARAL_STATS *stats = (PARAL_STATS *) shmat(shm_stats, NULL, 0);
     assert (stats != -1);
+    LABYRINTH labyrinth = (LABYRINTH) shmat(shm_labyrinth, NULL, 0);
+    assert (labyrinth != -1);
 
     // Retiens les murs non ouverts dans la zone du générateur (indice de la
     // cellule avec orientation du mur, utilise les bits dédiés au groupe
