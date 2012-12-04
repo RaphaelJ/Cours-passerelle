@@ -13,13 +13,20 @@
 
 int main(void)
 {
-    s_rand(time(NULL));
+    srand(time(NULL));
 
-    LABYRINTH labyrinth = gen_labyrinth();
+    PARAL_STATS stats;
+    LABYRINTH labyrinth = gen_labyrinth(&stats);
 
     show_labyrinth(labyrinth);
 
     free(labyrinth);
+
+    printf(
+        "Sur %d suppression de murs, %d ont été effectuées en parralèle "
+        "(%d %%).", stats.hits + stats.misses, stats.hits,
+        (stats.hits * 100) / (stats.hits + stats.misses)
+    );
 
     return 0;
 }

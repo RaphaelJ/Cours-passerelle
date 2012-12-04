@@ -76,7 +76,7 @@ void set_parent_index(CELL *cell, CELL parent_index);
 
 // Retourne la cellule à la racine du groupe à laquelle appartient la cellule.
 // Cette opération s'exécute en temps quasiment constant.
-CELL cell_root(LABYRINTH labyrinth, CELL *cell);
+CELL *cell_root(LABYRINTH labyrinth, CELL *cell);
 
 // Attache la cellule source au groupe de la cellule de destination.
 // Cette opération s'exécute en temps constant quel que soit la hauteur des
@@ -85,7 +85,7 @@ void cell_attach_group(CELL *src, CELL dst);
 
 // Génère un labyrinthe où toutes les cellules sont entièrement fermées.
 // Chaque cellule s'est vue attribuée une couleur différente.
-LABYRINTH init_labyrinth(void);
+void init_labyrinth(LABYRINTH labyrinth);
 
 // Structure permettant de récupérer les performances de la parallélisation
 // lors de l'exécution de l'algorithme de génération du labyrinthe.
@@ -93,7 +93,7 @@ LABYRINTH init_labyrinth(void);
 // et misses le nombre supprimés avec un blocage complet.
 typedef struct {
     int hits, misses;
-} PARAL_STATS
+} PARAL_STATS;
 
 // Génère un labyrinthe parfait de manière aléatoire sur quatre processus
 // indépendants. La fonction peut fournir les statistiques de la
