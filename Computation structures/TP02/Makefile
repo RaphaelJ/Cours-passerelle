@@ -1,8 +1,8 @@
 EXEC = labyrinth
 
-CC = clang
-# CC = gcc
-CFLAGS  = --std=c99 --pedantic -Wall -W -Wmissing-prototypes -O2
+# CC = clang
+CC = gcc
+CFLAGS  = --std=c99 --pedantic -Wall -W -Wmissing-prototypes -O2 -D_XOPEN_SOURCE
 LDFLAGS =
 
 SRC=$(wildcard *.c)

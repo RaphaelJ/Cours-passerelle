@@ -23,8 +23,8 @@ int main(void)
     free(labyrinth);
 
     printf(
-        "Sur %d suppression de murs, %d ont été effectuées en parralèle "
-        "(%d %%).", stats.hits + stats.misses, stats.hits,
+        "Sur %d suppressions de murs, %d ont été effectuées en parallèle "
+        "(%d %%).\n", stats.hits + stats.misses, stats.hits,
         (stats.hits * 100) / (stats.hits + stats.misses)
     );
 

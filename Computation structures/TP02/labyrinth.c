@@ -8,11 +8,10 @@
 #include <assert.h>
 #include <string.h>
 
-#define _XOPEN_SOURCE
 #include <signal.h>
+#include <sys/msg.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
-#include <sys/msg.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -133,13 +132,16 @@ static void semsignal(int sem);
 
 // Lance le généateur sur un autre processus.
 static pid_t fork_generator(
-    int sem_labyrinth, int shm_stats, int shm_labyrinth, int x, int y
+    int sem_labyrinth, int shm_stats, int shm_labyrinth, int top_x, int top_y,
+    int left_x, int left_y
 );
 
-// Génrère une partie d'un labyrinthe. Les coordonnées correspondent au premier
-// aux corrdonnées du premier mur supérieur et du premier mur à gauche.
+// Génère une partie d'un labyrinthe. Les coordonnées correspondent aux
+// positions des cellules du premier mur supérieur et du premier mur à gauche 
+// de la zone du générateur.
 static int generator(
-    int sem_labyrinth, int shm_stats, int shm_labyrinth, int x, int y
+    int sem_labyrinth, int shm_stats, int shm_labyrinth, int top_x, int top_y,
+    int left_x, int left_y
 );
 
 LABYRINTH gen_labyrinth(PARAL_STATS *stats)
@@ -174,19 +176,17 @@ LABYRINTH gen_labyrinth(PARAL_STATS *stats)
 
     // Démarre les quatre processus de génération (ne démarre que 3 processus
     // supplémentaires).
-    int middle = LABYRINTH_SIZE / 2;
-    fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, 1     , 1     );
-    fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, middle, 1     );
-    fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, 1     , middle);
-    generator     (sem_labyrinth, shm_stats, shm_labyrinth, middle, middle);
+    int m = LABYRINTH_SIZE / 2;
+    fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, 0, 1, 1, 0);
+    fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, m, 1, m, 0);
+    fork_generator(sem_labyrinth, shm_stats, shm_labyrinth, 0, m, 1, m);
+    generator     (sem_labyrinth, shm_stats, shm_labyrinth, m, m, m, m);
 
     // Attend que toutes les cases des trois enfants soient toutes de la
     // même couleur.
     for (int i = 0; i < 3; i++) {
         int child_status;
-        
-        printf("%d\n",wait(&child_status));
-        printf("%d\n",child_status);
+        wait(&child_status);
         assert (child_status == EXIT_SUCCESS);
     }
 
@@ -224,7 +224,8 @@ static void semsignal(int sem)
 }
 
 static pid_t fork_generator(
-    int sem_labyrinth, int shm_stats, int shm_labyrinth, int x, int y
+    int sem_labyrinth, int shm_stats, int shm_labyrinth, int top_x, int top_y,
+    int left_x, int left_y
 )
 {
     pid_t child = fork();
@@ -232,7 +233,10 @@ static pid_t fork_generator(
         assert (child != -1);
         return child;
     } else // Child
-        exit(generator(sem_labyrinth, shm_stats, shm_labyrinth, x, y));
+        exit(generator(
+            sem_labyrinth, shm_stats, shm_labyrinth, top_x, top_y, 
+            left_x, left_y)
+        );
 }
 
 // Retourne la cellule qui partage le même mur.
@@ -248,7 +252,8 @@ static void update_private(
 );
 
 static int generator(
-    int sem_labyrinth, int shm_stats, int shm_labyrinth, int x, int y
+    int sem_labyrinth, int shm_stats, int shm_labyrinth, int top_x, int top_y,
+    int left_x, int left_y
 )
 {
     int size = LABYRINTH_SIZE / 2;
@@ -272,33 +277,34 @@ static int generator(
     semwait(sem_labyrinth); // Accède en lecture à des cellules partagées.
     for (int i = 0; i < size; i++) {
         for (int j = 0; j < size; j++) {
-            int index = y * LABYRINTH_SIZE + x;
-            CELL *cell = labyrinth + index;
+            int top_index  = (top_y + i)  * LABYRINTH_SIZE + top_x + j
+              , left_index = (left_y + i) * LABYRINTH_SIZE + left_x + j;
+
+            CELL *top_cell  = labyrinth + top_index
+               , *left_cell = labyrinth + left_index;
+
+            CELL top_fellow  = *cell_fellow(top_cell, WALL_TOP)
+               , left_fellow = *cell_fellow(left_cell, WALL_LEFT);
 
             // Ajoute les murs sur des cases partagées à droite, les autres
             // à gauche.
-            bool shared = is_shared(*cell);
-            CELL left = *cell_fellow(cell, WALL_LEFT)
-               , top  = *cell_fellow(cell, WALL_TOP);
 
-            if (shared && is_shared(left))
-                walls[--first_shared] = WALL_LEFT | (CELL) index;
+            if (is_shared(*top_cell) && is_shared(top_fellow))
+                walls[--first_shared] = WALL_TOP | (CELL) top_index;
             else
-                walls[++last_private] = WALL_LEFT | (CELL) index;
+                walls[++last_private] = WALL_TOP | (CELL) top_index;
 
-            if (shared && is_shared(top))
-                walls[--first_shared] = WALL_TOP | (CELL) index;
+            if (is_shared(*left_cell) && is_shared(left_fellow))
+                walls[--first_shared] = WALL_LEFT | (CELL) left_index;
             else
-                walls[++last_private] = WALL_TOP | (CELL) index;
+                walls[++last_private] = WALL_LEFT | (CELL) left_index;
         }
     }
-
     semsignal(sem_labyrinth);
 
     // Boucle tant qu'il reste des murs à supprimer.
-    for  (;;) {
+    for (;;) {
         semwait(sem_labyrinth);
-        printf ("%d: Start\n", getpid());
 
         // Vérifie que les murs partagés n'ont pas été supprimés par un autre
         // processus et qu'ils départagent toujours deux groupes différents.
@@ -320,7 +326,6 @@ static int generator(
         // Sélectionne au hasard un mur dans les murs restants.
         int n_remaining = (last_private + 1) + (n_walls - first_shared);
         if (n_remaining == 0) {
-            printf ("%d: Stop\n", getpid());
             semsignal(sem_labyrinth);
             break;
         }
@@ -328,7 +333,6 @@ static int generator(
 
         if (random_index <= last_private) {
             stats->hits++;
-            printf ("%d: Stop\n", getpid());
             semsignal(sem_labyrinth);
 
             // Cette partie de l'algorithme peut s'effectuer en même temps sur
@@ -351,11 +355,23 @@ static int generator(
                 cell_attach_group(root2, *root1);
             else
                 cell_attach_group(root1, *root2);
-
             // Supprime le mur de la liste d'attente et des deux cellules.
             walls[random_index] = walls[last_private--];
-            *cell1 &= ~orientation; // Suppose que &= est une opération atomique
-            *cell2 &= ~orientation_inv(orientation);
+
+            // Ces deux instructions sont équivalentes à ces deux instructions:
+            // *cell1 &= ~orientation;
+            // *cell2 &= ~orientation_inv(orientation);
+            // A l'exception que le compilateur garantit que ces instructions
+            // s'exécutent de manière atomique, et permet ainsi d'éviter que 
+            // deux processus suppriment deux murs différents d'une même cellule
+            // au même instant, ce qui engendrait une perte de l'une des deux
+            // modifications.
+            __sync_fetch_and_and(cell1, ~orientation);
+            __sync_fetch_and_and(cell2, ~orientation_inv(orientation));
+            // Une alternative aurait été d'acquérir la sémaphore sem_labyrinth
+            // lorsque l'on change l'orientation d'une cellule qui est sur un
+            // bord de la zone du générateur, mais cette méthode est
+            // considérablement plus rapide.
 
             update_private(labyrinth, walls, &last_private, &first_shared);
         } else {
@@ -376,12 +392,9 @@ static int generator(
             *cell1 &= ~orientation;
             *cell2 &= ~orientation_inv(orientation);
 
-            printf ("%d: Stop\n", getpid());
             semsignal(sem_labyrinth);
         }
     }
-
-    printf ("%d: OK\n", getpid());
     return EXIT_SUCCESS;
 }
 
@@ -420,15 +433,16 @@ static void update_private(
         WALL orientation = wall & WALLS_MASK;
         CELL *cell1 = labyrinth + index;
         CELL *cell2 = cell_fellow(cell1, orientation);
+
         CELL *root1 = cell_root(labyrinth, cell1)
            , *root2 = cell_root(labyrinth, cell2);
 
         if (root1 == root2) // Le mur ne peut plus être supprimé.
-            walls[i--] = walls[*(last_private)--];
+            walls[i--] = walls[(*last_private)--];
         else if (is_shared(*root1) && is_shared(*root2)) {
             // Déplace le mur dans les murs partagés.
-            walls[--*(first_shared)] = walls[i];
-            walls[i--] = walls[*(last_private)--];
+            walls[--(*first_shared)] = walls[i];
+            walls[i--] = walls[(*last_private)--];
         }
     }
 }
@@ -439,11 +453,11 @@ void show_labyrinth(const LABYRINTH labyrinth)
         // Dessine les bordures supérieures de la ligne.
         for (int x = 0; x < LABYRINTH_SIZE; x++) {
             if (is_wall(*cell_index(labyrinth, x, y), WALL_TOP))
-                printf(" ――");
+                printf("·――");
             else
-                printf("   ");
+                printf("·  ");
         }
-        putchar('\n');
+        printf("·\n");
 
         // Dessine les bordures latérales des cellules de la ligne
         for (int x = 0; x < LABYRINTH_SIZE; x++) {
@@ -461,9 +475,9 @@ void show_labyrinth(const LABYRINTH labyrinth)
     // Dessine la bordure inférieure de la dernière ligne
     for (int x = 0; x < LABYRINTH_SIZE; x++) {
         if (is_wall(*cell_index(labyrinth, x, LABYRINTH_SIZE - 1), WALL_BOTTOM))
-            printf(" ――");
+            printf("·――");
         else
-            printf("   ");
+            printf("·  ");
     }
-    putchar('\n');
+    printf("·\n");
 }
