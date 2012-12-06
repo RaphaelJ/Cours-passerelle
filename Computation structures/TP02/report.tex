@@ -131,11 +131,25 @@ que l'ensemble de ses cellules ne fait pas partie du même groupe.
 
 \section{Performances}
 
-    \paragraph{} 
+    \paragraph{} Pour mesurer les performances de notre algorithme, nous avons
+mesuré le nombre total de suppressions de murs s'étant effectuées sans garder un
+verrou exclusif sur l'ensemble de la grille par rapport au nombre total de murs
+qui ont été supprimés.
+
+    \paragraph{} Etant donné que le nombre de cellules partagées augmente moins
+rapidement que le nombre total de cellules du labyrinthe lorsque l'on augmente
+la taille du labyrinthe, les performances de la parallélisation sont bien plus
+importantes lorsque le labyrinthe est de grande taille.
+
+    \paragraph{} Dans le cas d'un labyrinthe de 12 cases de large, 69\% des
+suppressions des murs se font en moyenne en parallèle. Avec 42 cases de large,
+plus de 90\% des suppressions sont effectuées sans le verrou global.
 
     \begin{center}
         \includegraphics{schema_performances.eps}
     \end{center}
+
+    \paragraph{} 
 
 
 
