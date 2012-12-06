@@ -33,7 +33,7 @@ const int LABYRINTH_SIZE; // Doit être pair
 // cellule.
 // Lorsque l'indice est le même que celui de la cellule, alors la cellule est sa
 // propre parente, et la racine de son groupe.
-typedef uint32_t CELL;
+typedef uint16_t CELL;
 typedef CELL *LABYRINTH;
 
 // Masques utilisés pour accéder aux deux valeurs des cellules.

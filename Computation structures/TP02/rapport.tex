@@ -24,23 +24,23 @@ supprimé.
 sur l'article correspondant de Wikipedia
 \footnote{http://fr.wikipedia.org/wiki/Union-Find}. Le regroupement de deux
 cellules se fait en parallèle si au moins l'une de ces deux-ci ne se trouve pas
-dans un groupes de cellules dont certaines sont partagées par un autre
-processus.
+dans un groupe de cellules dont certaines sont partagées par un autre processus.
     \newline Contrairement à un algorithme de remplissage plus naïf, notre
-algorithme effectue les regroupement en temps constant \underline{sans}
+algorithme effectue les regroupements en temps constant \underline{sans}
 augmenter l'espace mémoire nécessaire par rapport à ces premiers algorithmes.
 
 \section{Structure des données}
 \label{donnees}
 
     \paragraph{} L'ensemble des cellules du labyrinthe sont stockées dans un
-même vecteur.
+seul et même vecteur.
     \newline Chaque cellule est stockée dans un entier non signé de 16 bits. Les
 quatre premiers bits encodent les états des quatre murs de la cellule. Le bit
 suivant définit si cette cellule est partagée entre plusieurs processus (voir
 section \ref{parallelisme}). Les onze derniers bits encodent l'indice de la
 cellule parente dans le vecteur des cellules, de telle manière à aboutir à la
-structure hiérarchique \textit{Union-find}.
+structure hiérarchique \textit{Union-find}. L'utilisation d'indices plutôt que
+de pointeurs permet une économie d'espace mémoire.
 
     \paragraph{} Lorsque l'indice du parent est identique à l'indice de la
 cellule, alors celle-ci est sa propre parente.
@@ -74,7 +74,7 @@ deux groupes à fusionner, tout en occupant rigoureusement le même espace mémo
 de l'algorithme doit répondre est de garantir l'intégrité des labyrinthes
 générés.
     \newline En particulier, il convient d'éviter que deux processus distincts
-suppriment deux murs (distincts ou non) départageant deux même groupes au même
+suppriment deux murs (distincts ou non) départageant deux mêmes groupes au même
 moment.
 
     \paragraph{} Sur le dessin suivant, les deux murs en bleu ne peuvent en aucun
@@ -111,7 +111,7 @@ de la couleur du groupe partagé.}
     \paragraph{} Comme expliqué au cours de la section \ref{donnees}, chaque
 cellule contient un bit indiquant si cette dernière est partagée ou non, c'est à
 dire si son groupe peut être modifié par plusieurs processus ou non.
-    \newline Les cellules partagées sont grisées sur le schéma suivant. Il 
+    \newline Les cellules partagées sont grisées sur le schéma suivant. Il
 s'agit des cellules dont au moins l'un des murs peut être détruit par plusieurs
 processus.
 
@@ -141,16 +141,19 @@ rapidement que le nombre total de cellules du labyrinthe lorsque l'on augmente
 la taille du labyrinthe, les performances de la parallélisation sont bien plus
 importantes lorsque le labyrinthe est de grande taille.
 
-    \paragraph{} Dans le cas d'un labyrinthe de 12 cases de large, 69\% des
-suppressions des murs se font en moyenne en parallèle. Avec 42 cases de large,
+    \paragraph{} Dans le cas d'un labyrinthe de 12 cases de coté, 69\% des
+suppressions des murs se font en moyenne en parallèle. Avec 42 cases de coté,
 plus de 90\% des suppressions sont effectuées sans le verrou global.
 
     \begin{center}
         \includegraphics{schema_performances.eps}
     \end{center}
 
-    \paragraph{} 
-
-
+    \paragraph{} Sur un labyrinthe de très grande taille (250 cellules de coté,
+62 500 cellules\footnote{Pour
+stocker un labyrinthe de cette taille, les cellules ont dû être encodées sur des
+entiers de 32 bits plutôt que sur des entiers de 16 bits.}), la génération se
+fait en un peu plus de 5 secondes sur un processeur à quatre coeurs contre un
+peu plus de 12 secondes pour une version non concurrente de l'algorithme.
 
 \end{document}

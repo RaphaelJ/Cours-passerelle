@@ -17,17 +17,17 @@
 
 #include "labyrinth.h"
 
-const int LABYRINTH_SIZE = 250;
+const int LABYRINTH_SIZE = 12;
 
-const CELL WALLS_MASK = 0xF0000000;
-const CELL SHARE_MASK = 0x08000000;
-const CELL GROUP_MASK = 0x07FFFFFF;
+const CELL WALLS_MASK = 0xF000;
+const CELL SHARE_MASK = 0x0800;
+const CELL GROUP_MASK = 0x07FF;
 
 // Chaque mur est associé à un masque lié à son bit.
-const WALL WALL_TOP    = 0x80000000;
-const WALL WALL_RIGHT  = 0x40000000;
-const WALL WALL_BOTTOM = 0x20000000;
-const WALL WALL_LEFT   = 0x10000000;
+const WALL WALL_TOP    = 0x8000;
+const WALL WALL_RIGHT  = 0x4000;
+const WALL WALL_BOTTOM = 0x2000;
+const WALL WALL_LEFT   = 0x1000;
 
 CELL *cell_index(LABYRINTH labyrinth, int x, int y)
 {
