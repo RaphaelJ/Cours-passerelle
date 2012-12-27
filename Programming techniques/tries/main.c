@@ -51,7 +51,9 @@ static void testST(
 {
     void *st = initFct();
 
+    assert (!searchFct(st, 5418));
     st = insertFct(st, 5418);
+    assert (!searchFct(st, 45784));
     assert (searchFct(st, 5418));
 
     freeFct(st);
