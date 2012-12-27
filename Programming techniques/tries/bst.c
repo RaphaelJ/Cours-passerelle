@@ -1,4 +1,4 @@
-/* Programming techniques: Symbols tables.
+/* Programming techniques: Symbol tables.
  * Marien Bourguignon & Raphael Javaux - December 2012.
  *
  * This file defines a Binary Search Tree storing item_t.
