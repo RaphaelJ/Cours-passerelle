@@ -6,8 +6,8 @@
  * pointers) for each implementation.
  */
 
-#ifndef ST_H
-#define ST_H
+#ifndef _ST_H
+#define _ST_H
 
 #include <stdio.h>
 #include <stdlib.h>

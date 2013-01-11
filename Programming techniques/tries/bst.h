@@ -4,8 +4,8 @@
  * This file defines a Binary Search Tree storing item_t.
  */
 
-#ifndef BST_H
-#define BST_H
+#ifndef _BST_H
+#define _BST_H
 
 #include <stdio.h>
 #include <stdlib.h>

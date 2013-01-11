@@ -4,8 +4,8 @@
  * This file defines a dynamic hash table with linear probing.
  */
 
-#ifndef HASHTABLE_H
-#define HASHTABLE_H
+#ifndef _HASHTABLE_H
+#define _HASHTABLE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,12 +15,12 @@
 
 /** Defines the of the hash table's vector initial size.
  */
-const size_t HT_INIT_SIZE;
+extern const size_t HT_INIT_SIZE;
 
 /** Defines the maximum usage (between 0 and 1) of an hash table before a
  * reallocation (default : 0.5).
  */
-const double HT_MAX_USAGE;
+extern const double HT_MAX_USAGE;
 
 /** Stores an item in the hash table with the occupation status of the file.
  */

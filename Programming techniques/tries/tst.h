@@ -5,8 +5,8 @@
  * character strings.
  */
 
-#ifndef TST_H
-#define TST_H
+#ifndef _TST_H
+#define _TST_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +16,7 @@
 
 /** Contains the maximum length of a string encoded item_t.
  */
-const size_t TST_BUFFER_SIZE;
+extern const size_t TST_BUFFER_SIZE;
 
 /** Stores the recursive architecture of the tree.
  */

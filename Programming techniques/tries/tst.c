@@ -7,13 +7,15 @@
 
 #include "tst.h"
 
+#include "utils.h"
+
 const size_t TST_BUFFER_SIZE = sizeof "-2147483648";
 
 /** Inserts the item encoded in the buffer in the tree.
  */
 static tst_t *TSTInsertRec(tst_t *tree, const char *buffer);
 
-/** Searchs for an item encoded in the buffer in the tree.
+/** Searches for an item encoded in the buffer in the tree.
  */
 static bool TSTSearchRec(const tst_t *tree, const char *buffer);
 
@@ -37,7 +39,7 @@ tst_t *TSTInsert(tst_t *tree, item_t item)
 static tst_t *TSTInsertRec(tst_t *tree, const char *buffer)
 {
     if (tree == NULL) {
-        tree = malloc(sizeof (tst_t));
+        tree = m_malloc(sizeof (tst_t));
         tree->value = *buffer;
         tree->left = tree->right = NULL;
 
@@ -48,6 +50,7 @@ static tst_t *TSTInsertRec(tst_t *tree, const char *buffer)
     } else if (*buffer == '\0') {
         if (tree->value != '\0')
             tree->left = TSTInsertRec(tree->left, buffer);
+        else ; // Ignores already inserted item.
     } else {
         if (tree->value > *buffer)
             tree->left = TSTInsertRec(tree->left, buffer);
@@ -75,7 +78,7 @@ static bool TSTSearchRec(const tst_t *tree, const char *buffer)
     else if (tree->value > *buffer)
         return TSTSearchRec(tree->left, buffer);
     else if (tree->value == *buffer) {
-        if (*buffer == '\0') // Boths end the string.
+        if (*buffer == '\0') // Both end the string.
             return true;
         else
             return TSTSearchRec(tree->middle, buffer + 1);

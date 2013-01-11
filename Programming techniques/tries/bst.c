@@ -6,6 +6,8 @@
 
 #include "bst.h"
 
+#include "utils.h"
+
 bst_t *BSTInit(void)
 {
     return NULL;
@@ -14,7 +16,7 @@ bst_t *BSTInit(void)
 bst_t *BSTInsert(bst_t *tree, item_t item)
 {
     if (tree == NULL) { // Empty leaf, inserts on place. Returns the new node.
-        bst_t *node = malloc(sizeof (bst_t));
+        bst_t *node = m_malloc(sizeof (bst_t));
         node->item = item;
         node->left = node->right = NULL;
         return node;
