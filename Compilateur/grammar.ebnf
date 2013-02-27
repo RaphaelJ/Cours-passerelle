@@ -67,11 +67,9 @@ expression = and-expression
 and-expression = equality-expression
                | (and-expression, "&&", equality-expression)
 
-equality-expression = bool-expression
+equality-expression = relational-expression
                     | (equality-expression, "==", relational-expression)
                     | (equality-expression, "!=", relational-expression)
-
-bool-expression = relational-expression | "true" | "false"
 
 relational-expression = additive-expression
                       | (relational-expression, '<', additive-expression)
@@ -101,7 +99,7 @@ expression-list = expression | (expression, ',', expression-list)
 (* Noms des variables et des fonctions. *)
 identifier = letter, { letter | digit }
 
-litteral = string-litteral | number-litteral
+litteral = string-litteral | number-litteral | bool-litteral
 
 string-litteral = '"', { (letter | digit | space) }, '"'
 
@@ -110,6 +108,13 @@ number-litteral = integer-litteral | float-litteral
 integer-litteral = digit, { digit }
 
 float-litteral = integer-litteral, '.', integer-litteral
+
+(* Remarque: "bool-literal" pourrait être remonté au niveau de
+ * "equality-expression", ainsi lorsqu'un boolean serait utilisé avec un
+ * opérateur arithmétique, cela provoquerait une erreur de syntaxe.
+ * Cependant, il me semble plus logique que ça soit le type-checker qui émette
+ * cette erreur. *)
+bool-litteral = "true" | "false"
 
 digit = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 
