@@ -1,0 +1,18 @@
+name:              coda
+version:           0.0.0
+license:           BSD3
+author:            Raphael Javaux
+maintainer:        Raphael Javaux
+synopsis:          Compilateur pour le cours INFO0085, ULg.
+category:          Compiler
+stability:         Experimental
+cabal-version:     >= 1.8
+build-type:        Simple
+
+executable         coda
+
+    main-is:           Language/Coda.hs
+    build-depends:     base
+                     , parsec                          >= 3.1.3        && < 4
+
+    ghc-options:       -O2 -rtsopts

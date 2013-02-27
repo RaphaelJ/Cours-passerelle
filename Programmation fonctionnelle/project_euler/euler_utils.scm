@@ -41,7 +41,7 @@
           ((pred (car xs)) 
            (drop-while pred (cdr xs)))
           (else xs)))
-          
+
 (define (take n xs)
     (if (or (null? xs) (zero? n))
         '()
@@ -55,7 +55,7 @@
            (let* ((pivot (car xs))
                   (lesser  (filter (lambda (x) (<  x pivot)) (cdr xs)))
                   (greater (filter (lambda (x) (>= x pivot)) (cdr xs))))
-            
+
             (append (qsort lesser) (cons pivot (qsort greater)))))))
 
 ; Returns the unique elements from a list.
@@ -72,7 +72,7 @@
         '()
         (let ((sorted (qsort xs)))
          (cons (car sorted) (go-nub (car sorted) (cdr sorted))))))
-         
+
 ; Returns true if both list are equals
 (define (list-eq? xs ys)
     (cond ((null? xs) (null? ys))
