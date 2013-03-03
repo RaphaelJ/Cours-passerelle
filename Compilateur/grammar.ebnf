@@ -8,113 +8,99 @@
  * 
  * Février 2013, Raphael Javaux (s114483, année préparatoire)
  *)
- 
-program = { variable-declaration | function }
 
-(* Définit la déclaration et l'initialisation d'une variable.
- * Contrairement au C, une variable doit toujours être initialisée. *)
-variable-declaration = declarator-var, '=', expression, ';'
+program = { variable-decl | function-def }
 
-(* Déclaration d'un nom et d'un type d'une variable *)
-declarator-var = [ "const" ], type-array-spec, identifier
+(* Définit la déclaration et l'initialisation d'une variable. *)
+variable-decl = type-qual, type-array-spec, identifier, [ '=', expr ], ';'
 
 (* Définit la déclaration et/ou la définition d'une fonction.
  * Ne permet pas de retourner un tableau. *)
-function = type-spec, identifier, '(', function-args, ')'
-         , (compound-statement | ';')
+function-def = type-spec, identifier, '(', arguments-list, ')'
+             , (compound-stmt | ';')
 
-function-args = declarator-arg | (declarator-arg, ',' function-args)
+arguments-list = argument-decl | (argument-decl, ',' arguments-list)
 
-(* Déclaration d'un argument d'une fonction. Autorise l'omission de la taille 
- * pour la dernière dimension des tableaux ainsi que le nom donné à l'argument. 
+(* Déclaration d'un argument d'une fonction. Autorise l'omission de la taille
+ * pour la dernière dimension des tableaux ainsi que le nom donné à l'argument.
  *)
-declarator-arg = [ "const" ], type-array-spec, [ "[]" ], [ identifier ]
+argument-decl = type-qual, type-array-spec, [ "[]" ], [ identifier ]
 
 (* Types des variables.
  * Contrairement au C, la déclaration d'un tableau se fait au niveau du type
  * et non de l'identifieur (comme en C#). *)
 type-array-spec = type-spec, { '[', integer-litteral, ']' }
 
-type-spec = "char" | "int" | "float"
+(* Types des variables sans possibilité de définir un tableau. *)
+type-spec = "int" | "float" | "bool"
+
+type-qual = "const"
 
 (* Contrairement au C, tous les blocs de code doivent être délimités par des
  * crochets. Ceci enlève l'ambiguïté qui existe lorsqu'un compilateur C parse
  * deux "if"-"else" imbriqués dont les corps ne sont pas délimités par des
  * crochets. *)
-compound-statement = '{', { statement }, '}'
+compound-stmt = '{', { stmt }, '}'
 
-statement = variable-declaration
-          | assignment-expression
-          | (expression, ';')
-          | ("if", condition, compound-statement
-             , [ "else", compound-statement ])
-          | ("while", condition, compound-statement)
-          | ("return", [ expression ], ';')
-          | ';'
+stmt = variable-decl | variable-assign
+     | (expr, ';')
+     | ("if", condition, compound-stmt
+       , [ "else", compound-stmt ])
+     | ("while", condition, compound-stmt)
+     | ("return", [ expr ], ';')
+     | ';'
 
 (* Utilisé comme garde pour les structures de controle "if" et "while". *)
-condition = '(', expression, ')'
+condition = '(', bool-expr, ')'
 
 (* Mutation d'une variable/d'un tableau. *)
-assignment-expression = postfix-expression, '=', expression, ';'
+variable-assign = assignable-expr, '=', expr, ';'
 
 (* Opérateurs binaires. Applique la même priorité des opérateurs que celle
- * du langage C *)
+ * du langage C. *)
 
-expression = and-expression
-           | (expression, "||", and-expression)
+expr = bool-expr | numeric-expr
 
-and-expression = equality-expression
-               | (and-expression, "&&", equality-expression)
+bool-expr = and-expr | (bool-expr, "||", and-expr)
 
-equality-expression = relational-expression
-                    | (equality-expression, "==", relational-expression)
-                    | (equality-expression, "!=", relational-expression)
+and-expr = comparison-expr | (and-expr, "&&", comparison-expr)
 
-relational-expression = additive-expression
-                      | (relational-expression, '<', additive-expression)
-                      | (relational-expression, '>', additive-expression)
-                      | (relational-expression, '<=', additive-expression)
-                      | (relational-expression, '>=', additive-expression)
+comparison-expr = "true" | "false"
+                | (numeric-expr, "==", numeric-expr)
+                | (numeric-expr, "!=", numeric-expr)
+                | (numeric-expr, '<', numeric-expr)
+                | (numeric-expr, '>', numeric-expr)
+                | (numeric-expr, "<=", numeric-expr)
+                | (numeric-expr, ">=", numeric-expr)
 
-additive-expression = multiplicative-expression
-                    | (additive-expression, '+', multiplicative-expression)
-                    | (additive-expression, '-', multiplicative-expression)
+numeric-expr = multiplicative-expr
+             | (numeric-expr, '+', multiplicative-expr)
+             | (numeric-expr, '-', multiplicative-expr)
 
-multiplicative-expression = primary-expression
-                          | (multiplicative-expression, '*', primary-expression)
-                          | (multiplicative-expression, '/', primary-expression)
-                          | (multiplicative-expression, '%', primary-expression)
+multiplicative-expr = value-expr
+                    | (multiplicative-expr, '*', value-expr)
+                    | (multiplicative-expr, '/', value-expr)
+                    | (multiplicative-expr, '%', value-expr)
 
-primary-expression = array-expression | litteral | ('(', expression, ')')
+(* Référence une constante, une variable, le résultat de l'appel d'une fonction
+ * ou un élément d'un tableau. *)
+value-expr = litteral | assignable-expr
+           | (identifier, '(', expr-list, ')')
 
-(* Référence un élément d'un tableau. *)
-array-expression = function-expression, { '[', expression, ']' }
+(* Référence une expression qui peut être placée à gauche d'une assignation. *)
+assignable-expr = identifier
+                | (assignable-expr, '[', numeric-expr, ']')
 
-(* Référence une variable ou le résultat de l'appel d'une fonction. *)
-function-expression = identifier | (identifier, '(', expression-list, ')')
-
-expression-list = expression | (expression, ',', expression-list)
+expr-list = expr | (expr, ',', expr-list)
 
 (* Noms des variables et des fonctions. *)
 identifier = letter, { letter | digit }
 
-litteral = string-litteral | number-litteral | bool-litteral
-
-string-litteral = '"', { (letter | digit | space) }, '"'
-
-number-litteral = integer-litteral | float-litteral
+litteral = ['+' | '-'], (integer-litteral | float-litteral)
 
 integer-litteral = digit, { digit }
 
 float-litteral = integer-litteral, '.', integer-litteral
-
-(* Remarque: "bool-literal" pourrait être remonté au niveau de
- * "equality-expression", ainsi lorsqu'un boolean serait utilisé avec un
- * opérateur arithmétique, cela provoquerait une erreur de syntaxe.
- * Cependant, il me semble plus logique que ça soit le type-checker qui émette
- * cette erreur. *)
-bool-litteral = "true" | "false"
 
 digit = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 
@@ -123,5 +109,3 @@ letter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L'
        | 'Y' | 'Z' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j'
        | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v'
        | 'w' | 'x' | 'y' | 'z' | '_'
-
-white-space = ' ' | '\n' | '\t'
