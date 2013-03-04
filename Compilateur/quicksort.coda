@@ -1,1 +1,2 @@
-const int a = 10;
+
+const int [10][ 15] Abc3 = 1 + 1;

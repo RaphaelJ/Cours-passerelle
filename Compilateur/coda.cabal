@@ -18,4 +18,4 @@ executable         coda
                      , parsec                        >= 3.1.3   && < 4
                      , text                          >= 0.11    && < 1
 
-    ghc-options:       -O2 -rtsopts
+    ghc-options:       -O2 -rtsopts -Wall

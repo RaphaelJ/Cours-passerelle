@@ -59,14 +59,11 @@ variable-assign = assignable-expr, '=', expr, ';'
 (* Opérateurs binaires. Applique la même priorité des opérateurs que celle
  * du langage C. *)
 
-expr = bool-expr | numeric-expr
-
-bool-expr = and-expr | (bool-expr, "||", and-expr)
+expr = and-expr | (expr, "||", and-expr)
 
 and-expr = comparison-expr | (and-expr, "&&", comparison-expr)
 
-comparison-expr = "true" | "false"
-                | (numeric-expr, "==", numeric-expr)
+comparison-expr = (numeric-expr, "==", numeric-expr)
                 | (numeric-expr, "!=", numeric-expr)
                 | (numeric-expr, '<', numeric-expr)
                 | (numeric-expr, '>', numeric-expr)
@@ -86,6 +83,7 @@ multiplicative-expr = value-expr
  * ou un élément d'un tableau. *)
 value-expr = litteral | assignable-expr
            | (identifier, '(', expr-list, ')')
+           | ('(', expr, ')')
 
 (* Référence une expression qui peut être placée à gauche d'une assignation. *)
 assignable-expr = identifier
@@ -96,16 +94,20 @@ expr-list = expr | (expr, ',', expr-list)
 (* Noms des variables et des fonctions. *)
 identifier = letter, { letter | digit }
 
-litteral = ['+' | '-'], (integer-litteral | float-litteral)
+litteral = numeric-litteral | bool-litteral
+
+numeric-litteral = ['+' | '-'], (integer-litteral | float-litteral)
+
+bool-litteral = "true" | "false"
 
 integer-litteral = digit, { digit }
 
 float-litteral = integer-litteral, '.', integer-litteral
 
-digit = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+digit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 
 letter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L'
        | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
        | 'Y' | 'Z' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j'
        | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v'
-       | 'w' | 'x' | 'y' | 'z' | '_'
+       | 'w' | 'x' | 'y' | 'z'
