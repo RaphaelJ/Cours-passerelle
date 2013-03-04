@@ -72,7 +72,7 @@
         '()
         (let ((sorted (qsort xs)))
          (cons (car sorted) (go-nub (car sorted) (cdr sorted))))))
-         
+
 ; Returns true if both list are equals
 (define (list-eq? xs ys)
     (cond ((null? xs) (null? ys))
