@@ -1,5 +1,5 @@
 /* Computation Structures: Générateur de labyrinthes parallèle
- * Raphael Javaux - Novembre 2012.
+ * Raphael Javaux et Jeremy Aussems - Novembre 2012.
  *
  * Ce fichier définit un algorithme pour générer des labyrinthes de 12 cases de
  * coté ainsi que la structure de données associée.

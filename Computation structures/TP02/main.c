@@ -1,5 +1,5 @@
 /* Computation Structures: Générateur de labyrinthes parallèle
- * Raphael Javaux - Novembre 2012.
+ * Raphael Javaux et Jeremy Aussems - Novembre 2012.
  *
  * Génère et affiche un labyrinthe généré aléatoirement par un algorithme
  * concurrent.

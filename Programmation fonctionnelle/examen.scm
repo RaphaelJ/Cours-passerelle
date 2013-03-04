@@ -13,7 +13,7 @@
              (cons (modulo (go-sum 0 i prec rev-prec 0)
                            (+ (* 2 i) 3))
                    prec)))))
-    
+
     (define go-sum (lambda (i j prec rev-prec acc)
         (if (= i j)
             acc
