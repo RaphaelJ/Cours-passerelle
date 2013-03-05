@@ -52,8 +52,9 @@ typeArraySpec =
 
 expr, andExpr, comparisonExpr, numericExpr, multiplicativeExpr, valueExpr
     :: CodaParser CExpr
-expr =     try (binaryExpr COr expr (string "||") andExpr)
-       <|> try andExpr
+expr = multiplicativeExpr
+-- expr =     try (binaryExpr COr expr (string "||") andExpr)
+--        <|> try andExpr
 
 andExpr =     try (binaryExpr CAnd andExpr (string "&&") comparisonExpr)
           <|> try comparisonExpr
@@ -73,10 +74,18 @@ numericExpr =
     <|> try multiplicativeExpr
 
 multiplicativeExpr =
-        try (binaryExpr CMult multiplicativeExpr (char '*') valueExpr)
-    <|> try (binaryExpr CDiv  multiplicativeExpr (char '/') valueExpr)
-    <|> try (binaryExpr CMod  multiplicativeExpr (char '%') valueExpr)
-    <|> try valueExpr
+    valueExpr >>= go
+  where
+    go left = tryRight left <|> return left
+
+    tryRight left = try $ do
+        spaces >> char '*' >> spaces
+        (CBinOp CMult left <$> valueExpr) >>= go
+
+--         try (binaryExpr CMult valueExpr (char '*') multiplicativeExpr)
+--     <|> try (binaryExpr CDiv  valueExpr (char '/') multiplicativeExpr)
+--     <|> try (binaryExpr CMod  valueExpr (char '%') multiplicativeExpr)
+--     <|> try valueExpr
 
 valueExpr =     try (CAssignable <$> assignableExpr)
             <|> try (CCall <$> (identifier <* spaces) <*> callArgs)
@@ -118,10 +127,19 @@ identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
 -- | Parse et construit une expression à partir d'un opérateur binaire
 -- associatif sur sa gauche. Les trois parseurs permettent de parser les deux
 -- expressions à gauche et à droite de l'opérateur et l'opérateur lui-même.
-binaryExpr :: CBinOp -> CodaParser CExpr -> CodaParser a -> CodaParser CExpr
-           -> CodaParser CExpr
-binaryExpr op left opParser right =
-    CBinOp op <$> (left <* spaces <* opParser) <*> (spaces >> right)
+binaryExpr :: [CBinOp, CodaParser CExpr] -> CodaParser CExpr -> CodaParser CExpr
+binaryExpr ops nested =
+    nested >>= go
+  where
+    go left = (spaces >> tryOperators left ops) <|> return left
+
+    foldl1 <|> ops
+    step 
+    
+    tryOperator left  =
+    tryOperator left ((op, parser) : os) =
+            parser >> spaces >> (CBinOp op left <$> valueExpr) >>= go
+        <|> tryOperator left os
 
 -- | Parse une expression de définition ou de déréférencement d'une dimension
 -- d'un tableau. Le parseur 'inner' parse le contenu entre [ et ]. Ignore les
