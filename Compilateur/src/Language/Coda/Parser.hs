@@ -131,14 +131,11 @@ binaryExpr :: [CBinOp, CodaParser CExpr] -> CodaParser CExpr -> CodaParser CExpr
 binaryExpr ops nested =
     nested >>= go
   where
-    go left = (spaces >> tryOperators left ops) <|> return left
+    go left = (spaces >> tryOperators left ops)
 
-    foldl1 <|> ops
-    step 
-    
-    tryOperator left  =
+    tryOperator left [] = return left
     tryOperator left ((op, parser) : os) =
-            parser >> spaces >> (CBinOp op left <$> valueExpr) >>= go
+            (parser >> spaces >> (CBinOp op left <$> valueExpr) >>= go)
         <|> tryOperator left os
 
 -- | Parse une expression de définition ou de déréférencement d'une dimension

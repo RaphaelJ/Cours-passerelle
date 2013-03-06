@@ -1,0 +1,93 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[francais]{babel}
+\usepackage[babel=true]{csquotes}
+\usepackage{graphicx}
+\usepackage{listings}
+
+\pagestyle{headings}
+
+\title{Compilateur : Grammaire}
+\author{Raphaël Javaux (groupe \#14)}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+    \paragraph{}J'ai choisi d'implémenter un langage à typage statique reprenant
+les fonctionnalités de base du langage C nécessaire à l'expression du QuickSort.
+
+    \paragraph{Fonctionnalités minimales}
+
+    \begin{itemize}
+        \item Types de base : $int$, $bool$, $float$ ainsi que des tableaux de 1
+à N dimensions de ces premiers. Ces types seront directement symétriques
+dans leurs représentations à ceux du langage C ;
+        \item Qualifieur de type $const$ pour déclarer des variables constantes
+;
+        \item Déclaration, définition et appel de fonction (éventuellement
+récursif), opérateur $return$
+;
+        \item Opérateurs arithmétiques ($+$, $-$, $*$, $/$, $\%$), relationnels 
+($==$, $!=$, $<$, $>$, $<=$, $>=$) et logiques ($\&\&$, $||$) avec respect des
+règles de priorité et d'associativité ;
+        \item Structures de contrôle $if$ et $while$.
+    \end{itemize}
+
+    \paragraph{}Les fonctionnalités exprimées ci-dessus sont les fonctionnalités 
+élémentaires nécessaires pour permettre l'experession du QuickSort.
+Une fois qu'une version fonctionnelle du compilateur sera réalisée, d'autres
+fonctionnalités y seront éventuellement rajoutées, comme la possibilité de
+déclarer des types composites ($struct$), la gestion des fonctions imbriquées,
+l'inférence des types des variables lorsqu'elles sont directement initialisées,
+\dots
+
+    \paragraph{Exemple}QuickSort exprimé à l'aide de ce langage
+:
+
+\begin{lstlisting}
+void swap(int[], int, int);
+
+void qsort(int[] v, int left, int right)
+{
+    if (left >= right) {
+        return;
+    }
+
+    int i = left + 1;
+    int last = left;
+    while (i <= right) {
+        if (v[i] < v[left]) {
+            last = last + 1;
+            swap(v, last, i);
+        }
+        i = i+1;
+    }
+
+    swap(v, left, last);
+    qsort(v, left, last - 1);
+    qsort(v, last + 1, right);
+}
+
+void swap(int[] v, int i, int j)
+{
+    int tmp = v[i];
+    v[i] = v[j];
+    v[j] = v[i];
+}
+\end{lstlisting}
+
+    \paragraph{Choix} Si ce langage est un peu plus compliqué à parser qu'un
+langage basé sur des S-Expressions comme Lisp ou Scheme, son typage statique
+ainsi que l'absence de garbage collector rendra plus simple la génération du
+code LLVM.
+
+De plus, étant donné que les conventions d'appels et les types seront
+symétriques à ceux du langage C, il sera possible de simplement linker un
+fichier objet écrit en C avec un autre fichier objet écrit à l'aide de ce
+langage\footnote{J'envisage de simplement linker la fonction $qsort$ avec un
+programme C permettant de la tester plutôt de d'implémenter les fonctions
+d'entrée/sortie dans la version finale du travail, si cela est permis.}.
+
+\end{document}

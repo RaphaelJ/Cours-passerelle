@@ -16,7 +16,7 @@ variable-decl = type-qual, type-array-spec, identifier, [ '=', expr ], ';'
 
 (* Définit la déclaration et/ou la définition d'une fonction.
  * Ne permet pas de retourner un tableau. *)
-function-def = type-spec, identifier, '(', arguments-list, ')'
+function-def = (type-spec | "void"), identifier, '(', arguments-list, ')'
              , (compound-stmt | ';')
 
 arguments-list = argument-decl | (argument-decl, ',' arguments-list)
@@ -57,7 +57,7 @@ condition = '(', bool-expr, ')'
 variable-assign = assignable-expr, '=', expr, ';'
 
 (* Opérateurs binaires. Applique la même priorité des opérateurs que celle
- * du langage C. *)
+ * du langage C. Les opérateurs sont associatifs sur leur gauche. *)
 
 expr = and-expr | (expr, "||", and-expr)
 
