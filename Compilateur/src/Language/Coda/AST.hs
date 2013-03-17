@@ -14,7 +14,7 @@ data CVariableDecl = CVariableDecl (Maybe CTypeQual) CTypeArray CIdentifier
                                    (Maybe CExpr)
     deriving (Show, Eq)
 
-data CFunctionDef = CFunctionDef CType CIdentifier CArgument
+data CFunctionDef = CFunctionDef (Maybe CType) CIdentifier [CArgument]
                                  (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
@@ -26,11 +26,12 @@ data CType = CInt | CBool deriving (Show, Eq)
 data CTypeArray = CTypeArray CType [CInt]
     deriving (Show, Eq)
 
+data CTypeArrayArg = CTypeArrayArg CTypeArray Bool
+    deriving (Show, Eq)
+
 data CTypeQual = CConst deriving (Show, Eq)
 
-data CArgument = CArgument (Maybe CTypeQual) CTypeArray (Maybe CIdentifier)
-                           CArgument
-               | CArgumentVoid
+data CArgument = CArgument (Maybe CTypeQual) CTypeArrayArg (Maybe CIdentifier)
     deriving (Show, Eq)
 
 type CCompoundStmt = [CStmt]
@@ -42,9 +43,9 @@ data CStmt = CExpr CExpr | CDecl CVariableDecl
            | CReturn CExpr
     deriving (Show, Eq)
 
-data CExpr = CLitteral CLitteral
-           | CAssignable CAssignableExpr
-           | CCall CIdentifier [CExpr]
+data CExpr = CCall CIdentifier [CExpr]
+           | CLitteral CLitteral
+           | CAssignable CAssignableExpr 
            | CBinOp CBinOp CExpr CExpr
     deriving (Show, Eq)
 

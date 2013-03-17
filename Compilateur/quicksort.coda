@@ -1,2 +1,3 @@
 
-const int [10][ 15] Abc3 = 5*4*3*2;
+
+function(int, bool[101][] in);

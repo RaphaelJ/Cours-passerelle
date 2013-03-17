@@ -16,7 +16,7 @@ variable-decl = type-qual, type-array-spec, identifier, [ '=', expr ], ';'
 
 (* Définit la déclaration et/ou la définition d'une fonction.
  * Ne permet pas de retourner un tableau. *)
-function-def = (type-spec | "void"), identifier, '(', arguments-list, ')'
+function-def = [ type-spec ], identifier, '(', arguments-list, ')'
              , (compound-stmt | ';')
 
 arguments-list = argument-decl | (argument-decl, ',' arguments-list)
