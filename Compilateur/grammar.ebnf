@@ -42,19 +42,16 @@ type-qual = "const"
  * crochets. *)
 compound-stmt = '{', { stmt }, '}'
 
-stmt = variable-decl | variable-assign
+stmt = variable-decl
+     | (assignable-expr, '=', expr, ';')
      | (expr, ';')
-     | ("if", condition, compound-stmt
+     | ("if", guard, compound-stmt
        , [ "else", compound-stmt ])
-     | ("while", condition, compound-stmt)
+     | ("while", guard, compound-stmt)
      | ("return", [ expr ], ';')
-     | ';'
 
 (* Utilisé comme garde pour les structures de controle "if" et "while". *)
-condition = '(', bool-expr, ')'
-
-(* Mutation d'une variable/d'un tableau. *)
-variable-assign = assignable-expr, '=', expr, ';'
+guard = '(', bool-expr, ')'
 
 (* Opérateurs binaires. Applique la même priorité des opérateurs que celle
  * du langage C. Les opérateurs sont associatifs sur leur gauche. *)

@@ -1,3 +1,14 @@
+int[10] a;
+const int b = 100;
 
+function(int, bool[101][] arr) {
+    a = 10;
 
-function(int, bool[101][] in);
+    while (arr[0][0] == true){
+        if(b >= 100 ) {
+            int x = 10;
+        }
+    }
+}
+
+int function2 ();

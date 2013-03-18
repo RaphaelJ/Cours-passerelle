@@ -6,7 +6,7 @@ import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>))
 import qualified Data.Text as T
 import Text.Parsec (
       (<?>), alphaNum, between, char, digit, eof, letter, many, many1
-    , optionMaybe, sepBy, space, spaces, string, try
+    , optional, optionMaybe, sepBy, space, spaces, string, try
     )
 import Text.Parsec.Text.Lazy (Parser)
 
@@ -15,39 +15,36 @@ import Language.Coda.AST
 type CodaParser = Parser
 
 parser :: CodaParser AST
-parser = do
-    spaces
-    (eof >> return []) <|> declaration
+parser =
+    many (spaces >> declaration)
   where
-    declaration = (:) <$> (    try (CTopLevelVariableDecl <$> variableDecl)
-                           <|> try (CTopLevelFunctionDef  <$> functionDecl))
-                      <*> parser
+    declaration =     try (CTopLevelVariableDecl <$> variableDecl)
+                  <|> try (CTopLevelFunctionDef  <$> functionDecl)
 
 -- Déclarations ----------------------------------------------------------------
 
 variableDecl :: CodaParser CVariableDecl
-variableDecl = do
-    qual <- typeQual
-    spec <- typeArraySpec <* spaces1
-    ident <- identifier <* spaces
-    def <- optionMaybe $ char '=' >> spaces >> expr <* spaces
-    _ <- char ';'
-    return $ CVariableDecl qual spec ident def
+variableDecl =
+    CVariableDecl <$> typeQual
+                  <*> typeArraySpec <* spaces1
+                  <*> identifier <* spaces
+                  <*> optionMaybe (char '=' *> spaces *> expr)
+                  <*  tailingSep
 
 functionDecl :: CodaParser CFunctionDef
 functionDecl =
     CFunctionDef <$> optionMaybe (typeSpec <* spaces1)
                  <*> identifier <* spaces
-                 <*> args
-                 <*> optionMaybe compoundStmt
-                 <*  char ';'
+                 <*> args <* spaces
+                 <*> (    try (Just <$> compoundStmt)
+                      <|> (char ';' >> return Nothing))
   where
     args = between (char '(' >> spaces) (spaces >> char ')')
                    (arg `sepBy` (spaces >> char ',' >> spaces))
 
     arg = CArgument <$> typeQual
                     <*> typeArrayArgSpec
-                    <*> optionMaybe (try $ spaces1 >> identifier)
+                    <*> optionMaybe (try $ spaces1 *> identifier)
 
     typeArrayArgSpec =
         CTypeArrayArg <$> typeArraySpec
@@ -63,17 +60,30 @@ typeSpec =     try (string "int"  >> return CInt)
 
 typeArraySpec :: CodaParser CTypeArray
 typeArraySpec =
-    CTypeArray <$> (typeSpec <* spaces) <*> subscripts
+    CTypeArray <$> typeSpec <*> subscripts
   where
-    subscripts = many $ try $ subscript integerLitteral
+    subscripts = many $ try $ spaces >> subscript integerLitteral
 
 -- Instructions ----------------------------------------------------------------
 
 compoundStmt :: CodaParser CCompoundStmt
-compoundStmt = between (char '{' >> spaces) (spaces >> char '}') (many stmt)
+compoundStmt = between (char '{') (char '}') (many (spaces *> stmt))
 
 stmt :: CodaParser CStmt
-stmt = fail "j"
+stmt =     try (CExpr        <$> expr           <* tailingSep)
+       <|> try (CDecl        <$> variableDecl   <* tailingSep)
+       <|> try (CAssignation <$> assignableExpr <* spaces <* char '=' <* spaces
+                             <*> expr           <* tailingSep)
+       <|> try (CReturn      <$> (string "return" *> spaces1 *> expr)
+                             <*  tailingSep)
+       <|> try (CIf          <$> (string "if" *> spaces *> guard) <*  spaces
+                             <*> compoundStmt
+                             <*> optionMaybe (try $    spaces *> string "else"
+                                                    *> spaces *> compoundStmt))
+       <|> try (CWhile       <$> (string "while" *> spaces *> guard) <* spaces
+                             <*> compoundStmt)
+  where
+    guard = between (char '(' >> spaces) (spaces >> char ')') expr
 
 -- Expressions -----------------------------------------------------------------
 
@@ -128,12 +138,15 @@ identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
 
 -- Utilitaires -----------------------------------------------------------------
 
+-- | Parse une fin d'instruction.
+tailingSep :: CodaParser ()
+tailingSep = optional $ spaces >> char ';'
+
 -- | Parse un ensemble d'opérateurs binaires dotés d'une priorité identique.
 -- Chaque opérateur est fourni avec le parseur de son symbole. Le second
 -- argument parse les opérantes de l'opérateur (càd les l'expression ayant une
 -- priorité plus importante). Effectue une association sur la gauche.
-binaryExpr :: [CodaParser CBinOp] -> CodaParser CExpr
-           -> CodaParser CExpr
+binaryExpr :: [CodaParser CBinOp] -> CodaParser CExpr -> CodaParser CExpr
 binaryExpr ops inner =
     inner >>= go
   where

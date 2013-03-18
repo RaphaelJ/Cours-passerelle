@@ -38,14 +38,14 @@ type CCompoundStmt = [CStmt]
 
 data CStmt = CExpr CExpr | CDecl CVariableDecl
            | CAssignation CAssignableExpr CExpr
-           | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
-           | CWhite CExpr CCompoundStmt
            | CReturn CExpr
+           | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
+           | CWhile CExpr CCompoundStmt
     deriving (Show, Eq)
 
 data CExpr = CCall CIdentifier [CExpr]
            | CLitteral CLitteral
-           | CAssignable CAssignableExpr 
+           | CAssignable CAssignableExpr
            | CBinOp CBinOp CExpr CExpr
     deriving (Show, Eq)
 
