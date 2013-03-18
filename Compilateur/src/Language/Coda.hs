@@ -5,5 +5,7 @@ import Text.Parsec (parse)
 import Language.Coda.Parser (parser)
 
 main :: IO ()
-main = TL.interact (TL.pack . show . parse parser "stdin")
+main = do
+    TL.interact (TL.pack . show . parse parser "stdin")
+    putStrLn ""
 

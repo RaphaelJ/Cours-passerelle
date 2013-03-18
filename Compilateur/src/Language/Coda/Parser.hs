@@ -2,11 +2,11 @@
 -- caractères (Lazy Text).
 module Language.Coda.Parser (parser) where
 
-import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>))
+import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), pure)
 import qualified Data.Text as T
 import Text.Parsec (
-      (<?>), alphaNum, between, char, digit, eof, letter, many, many1
-    , optional, optionMaybe, sepBy, space, spaces, string, try
+      (<?>), alphaNum, between, char, digit, letter, many, many1, optionMaybe
+    , sepBy, space, spaces, string, try
     )
 import Text.Parsec.Text.Lazy (Parser)
 
@@ -67,7 +67,8 @@ typeArraySpec =
 -- Instructions ----------------------------------------------------------------
 
 compoundStmt :: CodaParser CCompoundStmt
-compoundStmt = between (char '{') (char '}') (many (spaces *> stmt))
+compoundStmt = between (char '{') (char '}')
+                       (many stmt)
 
 stmt :: CodaParser CStmt
 stmt =     try (CExpr        <$> expr           <* tailingSep)
@@ -139,8 +140,8 @@ identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
 -- Utilitaires -----------------------------------------------------------------
 
 -- | Parse une fin d'instruction.
-tailingSep :: CodaParser ()
-tailingSep = optional $ spaces >> char ';'
+tailingSep :: CodaParser Char
+tailingSep = spaces >> char ';'
 
 -- | Parse un ensemble d'opérateurs binaires dotés d'une priorité identique.
 -- Chaque opérateur est fourni avec le parseur de son symbole. Le second
@@ -155,13 +156,13 @@ binaryExpr ops inner =
 
     -- Tente de parser chaque symbole des opérateurs et une seconde opérande.
     -- Arrête de parser si aucun symbole ne parse.
-    tryOperators left []     = return left
     tryOperators left (p:ps) = tryOperator left p <|> tryOperators left ps
+    tryOperators left []     = return left
 
     tryOperator left p = try $ do
-        op <- p
-        right <- spaces *> inner
-        go (CBinOp op left right)
+        op <- CBinOp <$> p <*> (pure left <* spaces)
+                           <*> inner
+        go op
 
 -- | Parse une expression de définition ou de déréférencement d'une dimension
 -- d'un tableau. Le parseur 'inner' parse le contenu entre [ et ]. Ignore les
