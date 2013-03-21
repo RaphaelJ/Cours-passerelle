@@ -5,8 +5,8 @@ module Language.Coda.Parser (parser) where
 import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), pure)
 import qualified Data.Text as T
 import Text.Parsec (
-      (<?>), alphaNum, between, char, digit, letter, many, many1, optionMaybe
-    , sepBy, space, spaces, string, try
+      (<?>), alphaNum, between, char, digit, eof, letter, many, many1
+    , optionMaybe, sepBy, space, spaces, string, try
     )
 import Text.Parsec.Text.Lazy (Parser)
 
@@ -16,7 +16,7 @@ type CodaParser = Parser
 
 parser :: CodaParser AST
 parser =
-    many (spaces >> declaration)
+    many (spaces >> declaration) <* eof
   where
     declaration =     try (CTopLevelVariableDecl <$> variableDecl)
                   <|> try (CTopLevelFunctionDef  <$> functionDecl)
@@ -67,12 +67,11 @@ typeArraySpec =
 -- Instructions ----------------------------------------------------------------
 
 compoundStmt :: CodaParser CCompoundStmt
-compoundStmt = between (char '{') (char '}')
-                       (many stmt)
+compoundStmt = between (char '{' >> spaces) (char '}') (many (stmt <* spaces))
 
 stmt :: CodaParser CStmt
 stmt =     try (CExpr        <$> expr           <* tailingSep)
-       <|> try (CDecl        <$> variableDecl   <* tailingSep)
+       <|> try (CDecl        <$> variableDecl)
        <|> try (CAssignation <$> assignableExpr <* spaces <* char '=' <* spaces
                              <*> expr           <* tailingSep)
        <|> try (CReturn      <$> (string "return" *> spaces1 *> expr)

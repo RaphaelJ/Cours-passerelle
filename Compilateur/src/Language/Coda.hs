@@ -8,4 +8,3 @@ main :: IO ()
 main = do
     TL.interact (TL.pack . show . parse parser "stdin")
     putStrLn ""
-

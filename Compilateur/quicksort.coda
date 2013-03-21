@@ -1,1 +1,29 @@
-function(int, bool[101][] arr) {if(a == 10){a[0] = a * a;} else {b=10;}}
+swap(int[], int, int);
+
+qsort(int[] v, int left, int right)
+{
+    if (left >= right) {
+        return;
+    }
+
+    int i = left + 1;
+    int last = left;
+    while (i <= right) {
+        if (v[i] < v[left]) {
+            last = last + 1;
+            swap(v, last, i);
+        }
+        i = i+1;
+    }
+
+    swap(v, left, last);
+    qsort(v, left, last - 1);
+    qsort(v, last + 1, right);
+}
+
+swap(int[] v, int i, int j)
+{
+    int tmp = v[i];
+    v[i] = v[j];
+    v[j] = v[i];
+}
