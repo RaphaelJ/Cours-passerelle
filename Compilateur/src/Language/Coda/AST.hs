@@ -7,19 +7,16 @@ import Data.Text (Text)
 type AST = [CTopLevelDecl]
 
 data CTopLevelDecl = CTopLevelVariableDecl CVariableDecl
-                   | CTopLevelFunctionDef CFunctionDef
+                   | CTopLevelFunctionDef  CFunctionDef
     deriving (Show, Eq)
 
-data CVariableDecl = CVariableDecl (Maybe CTypeQual) CTypeArray CIdentifier 
+data CVariableDecl = CVariableDecl (Maybe CTypeQual) CTypeArray CIdentifier
                                    (Maybe CExpr)
     deriving (Show, Eq)
 
 data CFunctionDef = CFunctionDef (Maybe CType) CIdentifier [CArgument]
                                  (Maybe CCompoundStmt)
     deriving (Show, Eq)
-
-type CBool = Bool
-type CInt = Int64
 
 data CType = CInt | CBool deriving (Show, Eq)
 
@@ -58,6 +55,9 @@ data CAssignableExpr = CAssignableExpr CIdentifier [CExpr]
     deriving (Show, Eq)
 
 type CIdentifier = Text
+
+type CBool = Bool
+type CInt  = Int64
 
 data CLitteral = CLitteralInt CInt | CLitteralBool CBool
     deriving (Show, Eq)

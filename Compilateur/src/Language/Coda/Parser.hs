@@ -16,7 +16,7 @@ type CodaParser = Parser
 
 parser :: CodaParser AST
 parser =
-    many (spaces >> declaration) <* eof
+    spaces *> many (declaration <* spaces) <* eof
   where
     declaration =     try (CTopLevelVariableDecl <$> variableDecl)
                   <|> try (CTopLevelFunctionDef  <$> functionDecl)
@@ -148,9 +148,10 @@ tailingSep = spaces >> char ';'
 -- priorité plus importante). Effectue une association sur la gauche.
 binaryExpr :: [CodaParser CBinOp] -> CodaParser CExpr -> CodaParser CExpr
 binaryExpr ops inner =
+    -- Parse l'expression de gauche "jusqu'au plus loin possible".
     inner >>= go
   where
-    -- Ignore les espaces entre l'opérateur et les opérandes.
+    -- Ignore les espaces entre la première opérande et l'opérateur.
     go left = spaces >> tryOperators left ops
 
     -- Tente de parser chaque symbole des opérateurs et une seconde opérande.
@@ -159,7 +160,7 @@ binaryExpr ops inner =
     tryOperators left []     = return left
 
     tryOperator left p = try $ do
-        op <- CBinOp <$> p <*> (pure left <* spaces)
+        op <- CBinOp <$> p <*> pure left <* spaces
                            <*> inner
         go op
 
