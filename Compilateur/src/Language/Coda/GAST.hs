@@ -5,8 +5,8 @@
 -- chaque instance de l\'arbre syntaxique sera correctement typée (en d\'autres
 -- mots, que le vérificateur de types ne peut générer un arbre syntaxique qui
 -- ne respecterait pas les règles de typage définies ci-dessus). Cette assertion
--- est garantie par le vérificateur de types de Haskell, qui n\'est jamais
--- qu\'un vérificateur de preuves étendu (voir
+-- est garantie par le vérificateur de types de Haskell, qui est un vérificateur
+-- de preuves étendu (voir
 -- <http://en.wikipedia.org/wiki/Curry–Howard_correspondence>).
 --
 -- Par exemple l\'expression suivante :
@@ -71,9 +71,9 @@ data CStmt where
     CReturn :: CExpr a -> CStmt
 
 data CExpr a where
+    CCall       :: CIdentifier (a -> r) -> CCallArgument a -> CExpr r
     CLitteral   :: CLitteral a                             -> CExpr a
     CAssignable :: CAssignableExpr a                       -> CExpr a
-    CCall       :: CIdentifier (a -> r) -> CCallArgument a -> CExpr r
     CBinOp      :: CBinOp e r -> CExpr e -> CExpr e        -> CExpr r
 
 data CBoolLiteral = CTrue | CFalse deriving (Show, Eq)
@@ -102,9 +102,10 @@ data CAssignableExpr a where
                           -> CAssignableExpr a
     CAssignableIdentifier :: CIdentifier a -> CAssignableExpr a
 
-data CIdentifier a where
-    CIdentifier :: a -> CIdentifier a
+data GIdentifier a where
+    GIdentifier    :: Int -> GType a -> GIdentifier a
+    GFunIdentifier :: 
 
-data CLitteral a where
-    CLitteralInt  :: CInt  -> CLitteral CInt
-    CLitteralBool :: CBool -> CLitteral CBool
+data GLitteral a where
+    GLitteralInt  :: GInt  -> CLitteral GInt
+    GLitteralBool :: GBool -> CLitteral GBool
