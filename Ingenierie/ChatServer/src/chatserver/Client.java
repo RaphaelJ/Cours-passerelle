@@ -31,7 +31,7 @@ public class Client extends Thread {
             try {
                 this.authentification();
             } finally {
-                this._sock.close(); // close() peut émettre une exception.
+                this._sock.close(); // close() peut émettre une IOException.
             }
         } catch (IOException ex) {
             ex.printStackTrace();
