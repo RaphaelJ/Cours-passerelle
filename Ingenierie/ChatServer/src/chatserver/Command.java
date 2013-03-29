@@ -1,24 +1,26 @@
 package chatserver;
 
+import java.util.Iterator;
+
 /**
  * Encapsule une commande recue ou envoyée au client.
  * Une commande est constituée d'un caractère identifiant l'opérateur et
  * d'un vecteur de paramètres séparés par des espaces.
  * Fournit les méthodes de parsing et de génération de commandes.
  */
-class Command {
+class Command implements Iterable<String> {
     /** 
      * Commande utilisée pour signaler le succès d'une opération.
      */
-    public static final Command Ack = new Command('K', new String[0]);
+    public static final Command Ack = new Command('K',"");
     
     private final char _operator;
-    private final String[] _args;
+    private final String _args;
     
     /** 
      * Construit une nouvelle commande.
      */
-    public Command(char operator, String[] args)
+    public Command(char operator, String args)
     {
         this._operator = operator;
         this._args = args;
@@ -31,14 +33,20 @@ class Command {
     public Command(String str)
     {
         this._operator = str.charAt(0);
-        this._args     = str.substring(1).split(" ");
+
+        if (str.length() >= 3)
+            this._args = str.substring(2);
+        else
+            this._args = "";
     }
     
-    public char getOperator() {
+    public char getOperator() 
+    {
         return _operator;
     }
     
-    public String[] getArgs() {
+    public String getArgs() 
+    {
         return _args;
     }
     
@@ -49,15 +57,12 @@ class Command {
     @Override
     public String toString()
     {
-        StringBuilder builder = new StringBuilder();
-        
-        builder.append(this._operator);
-        
-        for (String arg : this._args) {
-            builder.append(' ');
-            builder.append(arg);
-        }
-        
-        return builder.toString();
+        return this._operator + " " + this._args;
      }
+
+    @Override
+    public Iterator<String> iterator()
+    {
+        return new CommandArgsIterator(this._args);
+    }
 }

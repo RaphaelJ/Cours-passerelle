@@ -2,9 +2,9 @@ package chatserver;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.TreeSet;
 
 /**
  * Gère un client connecté au serveur.
@@ -14,6 +14,11 @@ public class Client extends Thread {
     private final Socket _sock;
     private final CommandReader _in;
     private final CommandWriter _out;
+    
+    /**
+     * Salons auxquels l'utilisateur est connecté.
+     */
+    private final Set<Chan> _chans = new TreeSet<>();
 
     public Client(ChatServer server, Socket sock) throws IOException
     {
@@ -31,9 +36,18 @@ public class Client extends Thread {
             try {
                 this.authentification();
             } finally {
+                System.out.println(
+                    "Client " + this._sock.getInetAddress().toString() +
+                    "déconnecté."
+                );
                 this._sock.close(); // close() peut émettre une IOException.
             }
         } catch (IOException ex) {
+            System.err.println(
+                "Exception sur le client " + 
+                this._sock.getInetAddress().toString() + ":"
+            );
+            System.err.println("Client ");
             ex.printStackTrace();
         }
     }
@@ -45,20 +59,20 @@ public class Client extends Thread {
     public void authentification() throws IOException 
     {
         Command cmd = this._in.readCommand();
-        String[] args = cmd.getArgs();
         
         char op = cmd.getOperator();
-        if (cmd.getOperator() == 'C' && args.length == 1) {
+        CommandArgsIterator args_it = (CommandArgsIterator) cmd.iterator();
+        if (op == 'C' && args_it.hasNext()) {
             // Vérifie atomiquement si le nom d'utilisateur est déjà enregistré.
-            String user = args[0];
+            String user = args_it.remainder();
             boolean existing;
-            Set<String> users = this._server.getUsers();
+            Map<String, Client> users = this._server.getUsers();
             synchronized (users) {
-                if (users.contains(user))
+                if (users.containsKey(user))
                     existing = true;
                 else {
                     existing = false;
-                    users.add(user);
+                    users.put(user, this);
                 }             
             }
             
@@ -66,10 +80,10 @@ public class Client extends Thread {
                 this._out.writeCommand(Errors.AlreadyUsedUsername);
                 this.authentification();     
             } else {
-                // Authentification réussite. Change l'état du client.
+                // Authentification réussie. Change l'état du client.
                 try {
                     this._out.writeCommand(Command.Ack);
-                    this.MainLoop(user);
+                    this.mainLoop(user);
                 } finally { 
                     // Supprime de la liste des utilisateurs connectés lors
                     // de la fin de la connexion.
@@ -87,12 +101,42 @@ public class Client extends Thread {
     /**
      * Gère les commandes d'un client autentifié.
      */
-    private void MainLoop(String user) throws IOException 
+    private void mainLoop(String user) throws IOException 
     {
-        Command cmd = this._in.readCommand();
+        for (;;) {
+            Command cmd = this._in.readCommand();
         
-        switch (cmd.getOperator()) {
-        
+            char op = cmd.getOperator();
+            CommandArgsIterator args_it = (CommandArgsIterator) cmd.iterator();
+            if (op == 'J' && args.length == 1 && args[0].charAt(0) == '#')
+                this.joinChan(user, args[0].substring(0));
+            else if (op == 'Q' && args.length == 1 && args[0].charAt(0) == '#')
+                this.quitChan(user, args[0].substring(0));
+            else if (op == 'M' && args.length >= 2)
+                this.message(user, args)
+            else if (op == 'W' && args.length >= 2)
+                // Whois
+            else if (op == 'L' && args.length >= 2)
+                // List Chan
+            else if (op == 'U' && args.length >= 2)
+                // List Chan Users
+            else if (op == 'E')
+               this.serverExtensions(args_it);
+            else if (op == 'D')
+                break;
+            else
+                this._out.writeCommand(Errors.SyntaxError);
         }
+    }
+
+    private void serverExtensions(CommandArgsIterator args_it) 
+            throws IOException 
+    {
+        if (args_it.hasNext() && args_it.remainder().equals("version")) {
+            this._out.writeCommand(new Command(
+                'E', "Raphael Javaux " + Config.VERSION
+            ));
+        } else
+            this._out.writeCommand(Errors.SyntaxError);
     }
 }

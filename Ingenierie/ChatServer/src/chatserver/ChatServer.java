@@ -2,15 +2,23 @@ package chatserver;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.net.Socket;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
  * 
  */
 public class ChatServer  {
-    private Set<String> _users = new TreeSet<>();
+    /**
+     * Clients autentifiés.
+     */
+    private Map<String, Client> _users = new TreeMap<>();
+    /**
+     * Salons actifs.
+     */
+    private Set<Chan> _chans = new TreeSet<>();
 
     public static void main(String[] args) throws IOException 
     {
@@ -29,16 +37,17 @@ public class ChatServer  {
             "Socket serveur en écoute sur le port " + Config.SERVER_PORT + "."
         );
 
-        for (;;) {
-            Socket sock = server_sock.accept();
-            System.out.println(
-                "Nouveau client (" + sock.getInetAddress().toString() + ")."
-            );
-            new Client(this, sock).start();
-        }
+        for (;;)
+            new Client(this, server_sock.accept()).start();
     }
 
-    public Set<String> getUsers() {
+    public Map<String, Client> getUsers()
+    {
         return _users;
+    }
+
+    public Set<Chan> getChans()
+    {
+        return _chans;
     }
 }

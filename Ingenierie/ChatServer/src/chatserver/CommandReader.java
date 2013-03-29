@@ -19,8 +19,9 @@ public class CommandReader {
     
     /** 
      * Lit, parse et retourne une commande depuis le flux d'entrée.
+     * Verrouille le flux durant la réception.
      */
-    public Command readCommand() throws IOException
+    public synchronized Command readCommand() throws IOException
     {
         StringBuilder builder = new StringBuilder();
         

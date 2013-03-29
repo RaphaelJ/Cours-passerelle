@@ -19,8 +19,9 @@ public class CommandWriter {
     
     /** 
      * Ecrit une commande sur le flux de sortie.
+     * Vérouille le flux durant l'écriture.
      */
-    public void writeCommand(Command cmd) throws IOException
+    public synchronized void writeCommand(Command cmd) throws IOException
     {
         this._out.write(cmd.toString());
         this._out.write(Config.COMMAND_SEP);
