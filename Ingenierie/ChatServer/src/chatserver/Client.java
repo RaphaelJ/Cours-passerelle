@@ -3,8 +3,7 @@ package chatserver;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.TreeMap;
 
 /**
  * Gère un client connecté au serveur.
@@ -18,7 +17,7 @@ public class Client extends Thread {
     /**
      * Salons auxquels l'utilisateur est connecté.
      */
-    private final Set<Chan> _chans = new TreeSet<>();
+    private final Map<String, Chan> _chans = new TreeMap<>();
 
     public Client(ChatServer server, Socket sock) throws IOException
     {
@@ -64,15 +63,15 @@ public class Client extends Thread {
         CommandArgsIterator args_it = (CommandArgsIterator) cmd.iterator();
         if (op == 'C' && args_it.hasNext()) {
             // Vérifie atomiquement si le nom d'utilisateur est déjà enregistré.
-            String user = args_it.remainder();
+            String name = args_it.remainder();
             boolean existing;
             Map<String, Client> users = this._server.getUsers();
             synchronized (users) {
-                if (users.containsKey(user))
+                if (users.containsKey(name))
                     existing = true;
                 else {
                     existing = false;
-                    users.put(user, this);
+                    users.put(name, this);
                 }             
             }
             
@@ -83,12 +82,12 @@ public class Client extends Thread {
                 // Authentification réussie. Change l'état du client.
                 try {
                     this._out.writeCommand(Command.Ack);
-                    this.mainLoop(user);
+                    this.mainLoop(name);
                 } finally { 
                     // Supprime de la liste des utilisateurs connectés lors
                     // de la fin de la connexion.
                     synchronized (users) {
-                        users.remove(user);
+                        users.remove(name);
                     }
                 }
             }
@@ -101,17 +100,17 @@ public class Client extends Thread {
     /**
      * Gère les commandes d'un client autentifié.
      */
-    private void mainLoop(String user) throws IOException 
+    private void mainLoop(String name) throws IOException 
     {
         for (;;) {
             Command cmd = this._in.readCommand();
         
             char op = cmd.getOperator();
             CommandArgsIterator args_it = (CommandArgsIterator) cmd.iterator();
-            if (op == 'J' && args.length == 1 && args[0].charAt(0) == '#')
-                this.joinChan(user, args[0].substring(0));
+            if (op == 'J')
+                this.joinChan(name, args_it);
             else if (op == 'Q' && args.length == 1 && args[0].charAt(0) == '#')
-                this.quitChan(user, args[0].substring(0));
+                this.quitChan(name, args[0].substring(0));
             else if (op == 'M' && args.length >= 2)
                 this.message(user, args)
             else if (op == 'W' && args.length >= 2)
@@ -127,6 +126,28 @@ public class Client extends Thread {
             else
                 this._out.writeCommand(Errors.SyntaxError);
         }
+    }
+
+    private void joinChan(String user, CommandArgsIterator args_it)
+    {
+        if (args_it.hasNext()) {
+            String chan = args_it.next();
+            if (!args_it.hasNext() && chan.charAt(0) == '#' 
+                    && chan.length() >= 2) {
+                String chan_name = chan.substring(1);
+                Map<String, Chan> chans = this._server.getChans();
+                synchronized (chans) {
+                    if (chans.containsKey(chan_name)) {
+                        chans.
+                    } else
+                        
+                }
+                this._out.writeCommand(Command.Ack);
+            } else 
+                this._out.writeCommand(Errors.SyntaxError);
+        } else
+            this._out.writeCommand(Errors.SyntaxError);
+            
     }
 
     private void serverExtensions(CommandArgsIterator args_it) 

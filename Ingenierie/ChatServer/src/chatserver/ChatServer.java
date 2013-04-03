@@ -8,7 +8,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * 
+ * Gère la création des connexions des clients au serveur.
  */
 public class ChatServer  {
     /**
@@ -18,7 +18,7 @@ public class ChatServer  {
     /**
      * Salons actifs.
      */
-    private Set<Chan> _chans = new TreeSet<>();
+    private Map<String, Chan> _chans = new TreeMap<>();
 
     public static void main(String[] args) throws IOException 
     {
@@ -46,7 +46,7 @@ public class ChatServer  {
         return _users;
     }
 
-    public Set<Chan> getChans()
+    public Map<String, Chan> getChans()
     {
         return _chans;
     }
