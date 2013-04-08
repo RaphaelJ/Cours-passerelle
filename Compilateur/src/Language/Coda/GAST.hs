@@ -30,11 +30,11 @@ data GTopLevelDecl = GTopLevelVariableDecl GVariableDecl
                    | GTopLevelFunctionDef  GFunctionDef
 
 data GVariableDecl where
-    GVariableDecl :: Maybe GTypeQual -> GTypeArray a -> GIdentifier a
+    GVariableDecl :: GTypeArray a -> GIdentifier a
                   -> Maybe (GExpr a) -> GVariableDecl
 
 data GFunctionDef where
-    GFunctionDef :: GType a -> GIdentifier (b -> a) -> GArgument b
+    GFunctionDef :: GFunRetType a -> GIdentifier (b -> a) -> GArgument b
                  -> Maybe (GCompoundStmt a) -> GFunctionDef
 
 type GInt  = CInt
@@ -54,6 +54,22 @@ data GTypeArrayArg a where
     GArrayArg :: GTypeArray a               -> GTypeArray (CInt -> a)
 
 type GTypeQual = CTypeQual
+
+data GTypeQualConst a = GTypeQualConst a
+
+data GTypeQualFree  a = GTypeQualFree  a
+
+data GFunctionType a where
+    GFunctionNoArg ::               GFunctionRetType b -> GFunctionType b
+    GFunction      :: GFunArgs a -> GFunctionRetType b -> GFunctionType (a -> b)
+
+data GFunArgs a where
+    GFunArgsOne  :: GType a               -> GFunArgs a
+    GFunArgsMany :: GType a -> GFunArgs b -> GFunArgs (a -> b)
+
+data GFunRetType a where
+    GFunRetVoid ::            GFunRetType ()
+    GFunRetType :: GType a -> GFunRetType a
 
 data CArgument a where
     CArgument     :: Maybe CTypeQual -> CTypeArray a -> Maybe (CIdentifier a)
@@ -100,11 +116,11 @@ data CCallArgument a where
 data CAssignableExpr a where
     CAssignableArray      :: CIdentifier (CInt -> a) -> CExpr CInt
                           -> CAssignableExpr a
-    CAssignableIdentifier :: CIdentifier a -> CAssignableExpr a
+    CAssignableIdentifier :: CIdentifier (GTypeQualFree a) -> CAssignableExpr a
 
 data GIdentifier a where
-    GIdentifier    :: Int -> GType a -> GIdentifier a
-    GFunIdentifier :: 
+    GIdentifier    :: GType a    -> GIdentifier a
+    GFunIdentifier :: GFunType a -> GIdentifier a
 
 data GLitteral a where
     GLitteralInt  :: GInt  -> CLitteral GInt

@@ -14,8 +14,8 @@ data CVariableDecl = CVariableDecl (Maybe CTypeQual) CTypeArray CIdentifier
                                    (Maybe CExpr)
     deriving (Show, Eq)
 
-data CFunctionDef = CFunctionDef (Maybe CType) CIdentifier [CArgument]
-                                 (Maybe CCompoundStmt)
+data CFunctionDecl = CFunctionDecl (Maybe CType) CIdentifier [CArgument]
+                                   (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
 data CType = CInt | CBool deriving (Show, Eq)
