@@ -26,16 +26,16 @@ import Language.Coda.AST
 
 type GAST = [GTopLevelDecl]
 
-data GTopLevelDecl = GTopLevelVariableDecl GVariableDecl
-                   | GTopLevelFunctionDef  GFunctionDef
+data GTopLevelDecl = GTopLevelVarDecl GVarDecl | GTopLevelFunDecl GFunDecl
 
-data GVariableDecl where
-    GVariableDecl :: GTypeArray a -> GIdentifier a
-                  -> Maybe (GExpr a) -> GVariableDecl
+data GVarDecl where
+    -- | Déclaration sans initialisation. Impose que la variable ne soit pas
+    -- déclarée constante.
+    GVarDecl :: GVarIdent GTypeQualFree a -> GVarDecl
+    GVarDef  :: GVarIdent q a -> GExpr a  -> GVarDecl
 
-data GFunctionDef where
-    GFunctionDef :: GFunRetType a -> GIdentifier (b -> a) -> GArgument b
-                 -> Maybe (GCompoundStmt a) -> GFunctionDef
+data GFunDecl where
+    GFunDecl :: GFunType a -> GFunIdent a -> Maybe (GCompoundStmt a) -> GFunDecl
 
 type GInt  = CInt
 type GBool = CBool
@@ -44,84 +44,94 @@ data GType a where
     GInt  :: GType CInt
     GBool :: GType CBool
 
-data GTypeArray a where
-    GPrim     :: GType a                    -> GTypeArray a
-    GArray    :: GTypeArray a -> Maybe CInt -> GTypeArray (CInt -> a)
+data GQualifiedType q a = GQualifiedType (GTypeQual q) (GType a)
 
-data GTypeArrayArg a where
-    GTypeArray :: 
-    GTypeArray :: 
-    GArrayArg :: GTypeArray a               -> GTypeArray (CInt -> a)
+data GTypeQual a where
+    GTypeQualFree  :: GTypeQual GTypeQualFree
+    GTypeQualConst :: GTypeQual GTypeQualConst
 
-type GTypeQual = CTypeQual
+data GTypeQualFree
+data GTypeQualConst
 
-data GTypeQualConst a = GTypeQualConst a
+data GTypeArray q a where
+    GTypeArrayPrim :: GQualifiedType q a     -> GTypeArray q a
+    GTypeArray     :: GTypeArray q a -> GInt -> GTypeArray q (GInt -> a)
 
-data GTypeQualFree  a = GTypeQualFree  a
+data GTypeArg q a where
+    GTypeArg              :: GTypeArray q a -> GTypeArg q a
+    -- | Déclaration implicite de la dernière dimension du tableau.
+    GTypeArgArrayImplicit :: GTypeArray q a -> GTypeArg q (GInt -> a)
 
-data GFunctionType a where
-    GFunctionNoArg ::               GFunctionRetType b -> GFunctionType b
-    GFunction      :: GFunArgs a -> GFunctionRetType b -> GFunctionType (a -> b)
+data GFunType a where
+    GFun     ::                 GType b    -> GFunType b
+    GFunVoid ::                               GFunType ()
+    GFunArg  :: GTypeArg q a -> GFunType b -> GFunType (a -> b)
 
-data GFunArgs a where
-    GFunArgsOne  :: GType a               -> GFunArgs a
-    GFunArgsMany :: GType a -> GFunArgs b -> GFunArgs (a -> b)
+data GCompoundStmt a where
+    -- | Défini un bloc vide. Pas de valeur de retour.
+    GCompoundStmtFirst :: GCompoundStmt ()
+    -- | Défini un bloc de plusieurs instructions. Le type de retour de la
+    -- dernière instruction détermine le type du bloc.
+    GCompoundStmtLast  :: GCompoundStmt a -> GStmt b -> GCompoundStmt b
 
-data GFunRetType a where
-    GFunRetVoid ::            GFunRetType ()
-    GFunRetType :: GType a -> GFunRetType a
+data GStmt a where
+    GExpr   :: GExpr a                             -> GStmt a
+    GDecl   :: GVarDecl                            -> GStmt ()
+    -- | Impose que l'expression de gauche d'une assignation ne soit pas
+    -- constante.
+    GAssign :: GVarExpr GTypeQualFree a -> GExpr a -> GStmt ()
+    GIf     :: GExpr GBool -> GCompoundStmt a
+            -> Maybe (GCompoundStmt a)             -> GStmt a
+    GWhile  :: GExpr GBool -> GCompoundStmt a      -> GStmt ()
 
-data CArgument a where
-    CArgument     :: Maybe CTypeQual -> CTypeArray a -> Maybe (CIdentifier a)
-                  -> CArgument b -> CArgument (a -> b)
-    CArgumentVoid :: CArgument ()
+data GExpr a where
+    GCall      :: GCall a                             -> GExpr r
+    GVar       :: GVarExpr q a                        -> GExpr a
+    GLitteral  :: GLitteral a                         -> GExpr a
+    GBinOp     :: GBinOp e r -> GExpr e -> GExpr e    -> GExpr r
 
-type CCompoundStmt = [CStmt]
+data GBinOp e r where
+    GAnd   :: GBinOp GBool GBool
+    GOr    :: GBinOp GBool GBool
+    GEq    :: GBinOp GInt  GBool
+    GNEq   :: GBinOp GInt  GBool
+    GLt    :: GBinOp GInt  GBool
+    GGt    :: GBinOp GInt  GBool
+    GLtEq  :: GBinOp GInt  GBool
+    GGtEq  :: GBinOp GInt  GBool
+    GAdd   :: GBinOp GInt  GInt
+    GSub   :: GBinOp GInt  GInt
+    GMult  :: GBinOp GInt  GInt
+    GDiv   :: GBinOp GInt  GInt
+    GMod   :: GBinOp GInt  GInt
 
-data CStmt where
-    CExpr   :: CExpr a -> CStmt
-    CDecl   :: CVariableDecl -> CStmt
-    CAssign :: CAssignableExpr a -> CExpr a -> CStmt
-    CIf     :: CExpr CBool -> CCompoundStmt -> Maybe CCompoundStmt -> CStmt
-    CWhite  :: CExpr CBool -> CCompoundStmt -> CStmt
-    CReturn :: CExpr a -> CStmt
+data GCall a where
+    GCallNoArg :: GVarIdent q a             -> GCall a
+    -- | Applique la fonction à son premier argument.
+    GCallArg   :: GCall (a -> b) -> GExpr a -> GCall b
 
-data CExpr a where
-    CCall       :: CIdentifier (a -> r) -> CCallArgument a -> CExpr r
-    CLitteral   :: CLitteral a                             -> CExpr a
-    CAssignable :: CAssignableExpr a                       -> CExpr a
-    CBinOp      :: CBinOp e r -> CExpr e -> CExpr e        -> CExpr r
+data GVarExpr q a where
+    GVarExpr      :: GVarIdent q a                        -> GVarExpr q a
+    GVarExprArray :: GVarExpr q (GInt -> a) -> GExpr GInt -> GVarExpr q a
 
-data CBoolLiteral = CTrue | CFalse deriving (Show, Eq)
+type GIdent = CIdent
 
-data CBinOp e r where
-    CAnd   :: CBinOp CBool CBool
-    COr    :: CBinOp CBool CBool
-    CEq    :: CBinOp CInt  CBool
-    CNEq   :: CBinOp CInt  CBool
-    CLt    :: CBinOp CInt  CBool
-    CGt    :: CBinOp CInt  CBool
-    CLtEq  :: CBinOp CInt  CBool
-    CGtEq  :: CBinOp CInt  CBool
-    CAdd   :: CBinOp CInt  CInt
-    CSub   :: CBinOp CInt  CInt
-    CMult  :: CBinOp CInt  CInt
-    CDiv   :: CBinOp CInt  CInt
-    CMod   :: CBinOp CInt  CInt
+data GVarIdent q a = GVarIdent GIdent (GTypeArray q a)
 
-data CCallArgument a where
-    CCallArgument     :: CExpr a -> CCallArgument b -> CCallArgument (a -> b)
-    CCallArgumentVoid :: CCallArgument ()
+instance Eq (GVarIdent q a) where
+    GVarIdent a _ == GVarIdent b _ = a == b
 
-data CAssignableExpr a where
-    CAssignableArray      :: CIdentifier (CInt -> a) -> CExpr CInt
-                          -> CAssignableExpr a
-    CAssignableIdentifier :: CIdentifier (GTypeQualFree a) -> CAssignableExpr a
+instance Ord (GVarIdent q a) where
+    GVarIdent a _ `compare` GVarIdent b _ = a `compare` b
 
-data GIdentifier a where
-    GIdentifier    :: GType a    -> GIdentifier a
-    GFunIdentifier :: GFunType a -> GIdentifier a
+data GFunIdent a = GFunIdent GIdent (GFunType a)
+
+instance Eq (GFunIdent a) where
+    GFunIdent a _ == GFunIdent b _ = a == b
+
+instance Ord (GFunIdent a) where
+    GFunIdent a _ `compare` GFunIdent b _ = a `compare` b
 
 data GLitteral a where
-    GLitteralInt  :: GInt  -> CLitteral GInt
-    GLitteralBool :: GBool -> CLitteral GBool
+    GLitteralInt  :: GInt  -> GLitteral GInt
+    GLitteralBool :: GBool -> GLitteral GBool

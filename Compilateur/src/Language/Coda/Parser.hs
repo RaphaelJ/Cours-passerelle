@@ -1,6 +1,6 @@
 -- | Définit la fonction 'parse' qui génère un AST à partir d'un flux de
 -- caractères (Lazy Text).
-module Language.Coda.Parser (parser) where
+module Language.Coda.Parser (CodaParser, parser) where
 
 import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), pure)
 import qualified Data.Text as T
@@ -18,26 +18,26 @@ parser :: CodaParser AST
 parser =
     spaces *> many (declaration <* spaces) <* eof
   where
-    declaration =     try (CTopLevelVariableDecl <$> variableDecl)
-                  <|> try (CTopLevelFunctionDef  <$> functionDecl)
+    declaration =     try (CTopLevelVarDecl <$> variableDecl)
+                  <|> try (CTopLevelFunDecl <$> functionDecl)
 
 -- Déclarations ----------------------------------------------------------------
 
-variableDecl :: CodaParser CVariableDecl
+variableDecl :: CodaParser CVarDecl
 variableDecl =
-    CVariableDecl <$> typeQual
-                  <*> typeArraySpec <* spaces1
-                  <*> identifier <* spaces
-                  <*> optionMaybe (char '=' *> spaces *> expr)
-                  <*  tailingSep
+    CVarDecl <$> typeQual
+             <*> typeArraySpec <* spaces1
+             <*> identifier <* spaces
+             <*> optionMaybe (char '=' *> spaces *> expr)
+             <*  tailingSep
 
-functionDecl :: CodaParser CFunctionDef
+functionDecl :: CodaParser CFunDecl
 functionDecl =
-    CFunctionDef <$> optionMaybe (typeSpec <* spaces1)
-                 <*> identifier <* spaces
-                 <*> args <* spaces
-                 <*> (    try (Just <$> compoundStmt)
-                      <|> (char ';' >> return Nothing))
+    CFunDecl <$> optionMaybe (typeSpec <* spaces1)
+             <*> identifier <* spaces
+             <*> args <* spaces
+             <*> (    try (Just <$> compoundStmt)
+                  <|> (char ';' >> return Nothing))
   where
     args = between (char '(' >> spaces) (spaces >> char ')')
                    (arg `sepBy` (spaces >> char ',' >> spaces))
@@ -70,22 +70,24 @@ compoundStmt :: CodaParser CCompoundStmt
 compoundStmt = between (char '{' >> spaces) (char '}') (many (stmt <* spaces))
 
 stmt :: CodaParser CStmt
-stmt =     try (CExpr        <$> expr           <* tailingSep)
-       <|> try (CDecl        <$> variableDecl)
-       <|> try (CAssignation <$> assignableExpr <* spaces <* char '=' <* spaces
-                             <*> expr           <* tailingSep)
-       <|> try (CReturn      <$> (string "return" *> spaces1 *> expr)
-                             <*  tailingSep)
-       <|> try (CIf          <$> (string "if" *> spaces *> guard) <*  spaces
-                             <*> compoundStmt
-                             <*> optionMaybe (try $    spaces *> string "else"
-                                                    *> spaces *> compoundStmt))
-       <|> try (CWhile       <$> (string "while" *> spaces *> guard) <* spaces
-                             <*> compoundStmt)
+stmt =     try (CDecl   <$> variableDecl)
+       <|> try (CAssign <$> varExpr <* spaces <* char '=' <* spaces
+                        <*> expr           <* tailingSep)
+       <|> try (CExpr   <$> expr           <* tailingSep)
+       <|> try (CIf     <$> (string "if" *> spaces *> guard) <*  spaces
+                        <*> compoundStmt
+                        <*> optionMaybe (try $    spaces *> string "else"
+                                               *> spaces *> compoundStmt))
+       <|> try (CWhile  <$> (string "while" *> spaces *> guard) <* spaces
+                        <*> compoundStmt)
   where
     guard = between (char '(' >> spaces) (spaces >> char ')') expr
 
 -- Expressions -----------------------------------------------------------------
+
+-- Parse les opérateurs binaires avec une descente récursive en profondeur sur
+-- des opérateurs de plus en plus prioritaire jusqu'à atteindre une expression
+-- littérale ou un identifieur.
 
 expr, andExpr, comparisonExpr, numericExpr, multiplicativeExpr, valueExpr
     :: CodaParser CExpr
@@ -106,22 +108,22 @@ multiplicativeExpr = binaryExpr [
       char '*' >> return CMult, char '/' >> return CDiv, char '%' >> return CMod
     ] valueExpr
 
-valueExpr =     try (CCall <$> identifier <* spaces <*> callArgs)
-            <|> try (CAssignable <$> assignableExpr)
-            <|> try (between (char '(') (char ')') (spaces >> expr <* spaces))
+valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
+            <|> try (CVar      <$> varExpr)
             <|> try (CLitteral <$> litteral)
+            <|> try (between (char '(' >> spaces) (spaces >> char ')') expr)
   where
     callArgs = between (char '(' >> spaces) (spaces >> char ')')
                        (expr `sepBy` (spaces >> char ',' >> spaces))
 
-assignableExpr :: CodaParser CAssignableExpr
-assignableExpr =
-    CAssignableExpr <$> identifier <*> subscripts
+varExpr :: CodaParser CVarExpr
+varExpr =
+    CVarExpr <$> identifier <*> subscripts
   where
     subscripts = many $ subscript expr
 
 litteral :: CodaParser CLitteral
-litteral =     (CLitteralInt <$> integerLitteral)
+litteral =     (CLitteralInt  <$> integerLitteral)
            <|> (CLitteralBool <$> boolLitteral)
 
 integerLitteral :: CodaParser CInt
@@ -162,13 +164,13 @@ binaryExpr ops inner =
     tryOperator left p = try $ do
         op <- CBinOp <$> p <*> pure left <* spaces
                            <*> inner
-        go op
+        go op -- Parce une occurrence suivante de ces mêmes opérateurs.
 
 -- | Parse une expression de définition ou de déréférencement d'une dimension
 -- d'un tableau. Le parseur 'inner' parse le contenu entre [ et ]. Ignore les
--- espaces internes.
+-- espaces internes entourant ce parseur.
 subscript :: CodaParser a -> CodaParser a
-subscript inner = between (char '[')  (char ']') (spaces *> inner <* spaces)
+subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner
 
 -- | Parse 1 à N caractères d'espacement.
 spaces1 :: CodaParser ()

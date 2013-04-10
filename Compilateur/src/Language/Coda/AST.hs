@@ -6,16 +6,15 @@ import Data.Text (Text)
 
 type AST = [CTopLevelDecl]
 
-data CTopLevelDecl = CTopLevelVariableDecl CVariableDecl
-                   | CTopLevelFunctionDef  CFunctionDef
+data CTopLevelDecl = CTopLevelVarDecl CVarDecl | CTopLevelFunDecl CFunDecl
     deriving (Show, Eq)
 
-data CVariableDecl = CVariableDecl (Maybe CTypeQual) CTypeArray CIdentifier
-                                   (Maybe CExpr)
+data CVarDecl = CVarDecl (Maybe CTypeQual) CTypeArray CIdent
+                         (Maybe CExpr)
     deriving (Show, Eq)
 
-data CFunctionDecl = CFunctionDecl (Maybe CType) CIdentifier [CArgument]
-                                   (Maybe CCompoundStmt)
+data CFunDecl = CFunDecl (Maybe CType) CIdent [CArgument]
+                         (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
 data CType = CInt | CBool deriving (Show, Eq)
@@ -28,21 +27,21 @@ data CTypeArrayArg = CTypeArrayArg CTypeArray Bool
 
 data CTypeQual = CConst deriving (Show, Eq)
 
-data CArgument = CArgument (Maybe CTypeQual) CTypeArrayArg (Maybe CIdentifier)
+data CArgument = CArgument (Maybe CTypeQual) CTypeArrayArg (Maybe CIdent)
     deriving (Show, Eq)
 
 type CCompoundStmt = [CStmt]
 
-data CStmt = CExpr CExpr | CDecl CVariableDecl
-           | CAssignation CAssignableExpr CExpr
-           | CReturn CExpr
+data CStmt = CDecl CVarDecl
+           | CAssign CVarExpr CExpr
+           | CExpr CExpr 
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt
     deriving (Show, Eq)
 
-data CExpr = CCall CIdentifier [CExpr]
+data CExpr = CCall CIdent [CExpr]
+           | CVar CVarExpr
            | CLitteral CLitteral
-           | CAssignable CAssignableExpr
            | CBinOp CBinOp CExpr CExpr
     deriving (Show, Eq)
 
@@ -51,10 +50,10 @@ data CBinOp = CAnd | COr
             | CAdd | CSub | CMult | CDiv | CMod
     deriving (Show, Eq)
 
-data CAssignableExpr = CAssignableExpr CIdentifier [CExpr]
+data CVarExpr = CVarExpr CIdent [CExpr]
     deriving (Show, Eq)
 
-type CIdentifier = Text
+type CIdent = Text
 
 type CBool = Bool
 type CInt  = Int64
