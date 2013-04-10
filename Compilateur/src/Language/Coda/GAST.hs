@@ -22,20 +22,22 @@
 -- <http://en.wikipedia.org/wiki/GADT>
 module Language.Coda.GAST where
 
+import qualified Data.Set as S
+
 import Language.Coda.AST
 
-type GAST = [GTopLevelDecl]
+type GAST = [GTopLevel]
 
-data GTopLevelDecl = GTopLevelVarDecl GVarDecl | GTopLevelFunDecl GFunDecl
+data GTopLevel = GTopLevelVar GVar | GTopLevelFun GFun
 
-data GVarDecl where
+data GVar where
     -- | Déclaration sans initialisation. Impose que la variable ne soit pas
     -- déclarée constante.
-    GVarDecl :: GVarIdent GTypeQualFree a -> GVarDecl
-    GVarDef  :: GVarIdent q a -> GExpr a  -> GVarDecl
+    GVarDecl :: GVarIdent GTypeQualFree a -> GVar
+    GVarDef  :: GVarIdent q a -> GExpr a  -> GVar
 
-data GFunDecl where
-    GFunDecl :: GFunType a -> GFunIdent a -> Maybe (GCompoundStmt a) -> GFunDecl
+data GFun where
+    GFun :: GFunType a -> GFunIdent a -> GCompoundStmt a -> GFun
 
 type GInt  = CInt
 type GBool = CBool
@@ -63,7 +65,7 @@ data GTypeArg q a where
     GTypeArgArrayImplicit :: GTypeArray q a -> GTypeArg q (GInt -> a)
 
 data GFunType a where
-    GFun     ::                 GType b    -> GFunType b
+    GFunRet  ::                 GType b    -> GFunType b
     GFunVoid ::                               GFunType ()
     GFunArg  :: GTypeArg q a -> GFunType b -> GFunType (a -> b)
 
@@ -76,7 +78,7 @@ data GCompoundStmt a where
 
 data GStmt a where
     GExpr   :: GExpr a                             -> GStmt a
-    GDecl   :: GVarDecl                            -> GStmt ()
+    GDecl   :: GVar                                -> GStmt ()
     -- | Impose que l'expression de gauche d'une assignation ne soit pas
     -- constante.
     GAssign :: GVarExpr GTypeQualFree a -> GExpr a -> GStmt ()
@@ -86,7 +88,7 @@ data GStmt a where
 
 data GExpr a where
     GCall      :: GCall a                             -> GExpr r
-    GVar       :: GVarExpr q a                        -> GExpr a
+    GVarExpr   :: GVarExpr q a                        -> GExpr a
     GLitteral  :: GLitteral a                         -> GExpr a
     GBinOp     :: GBinOp e r -> GExpr e -> GExpr e    -> GExpr r
 
@@ -111,7 +113,7 @@ data GCall a where
     GCallArg   :: GCall (a -> b) -> GExpr a -> GCall b
 
 data GVarExpr q a where
-    GVarExpr      :: GVarIdent q a                        -> GVarExpr q a
+    GVarExprPrim  :: GVarIdent q a                        -> GVarExpr q a
     GVarExprArray :: GVarExpr q (GInt -> a) -> GExpr GInt -> GVarExpr q a
 
 type GIdent = CIdent

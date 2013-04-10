@@ -18,26 +18,26 @@ parser :: CodaParser AST
 parser =
     spaces *> many (declaration <* spaces) <* eof
   where
-    declaration =     try (CTopLevelVarDecl <$> variableDecl)
-                  <|> try (CTopLevelFunDecl <$> functionDecl)
+    declaration =     try (CTopLevelVar <$> variableDecl)
+                  <|> try (CTopLevelFun <$> functionDecl)
 
 -- Déclarations ----------------------------------------------------------------
 
-variableDecl :: CodaParser CVarDecl
+variableDecl :: CodaParser CVar
 variableDecl =
-    CVarDecl <$> typeQual
-             <*> typeArraySpec <* spaces1
-             <*> identifier <* spaces
-             <*> optionMaybe (char '=' *> spaces *> expr)
-             <*  tailingSep
+    CVar <$> typeQual
+         <*> typeArraySpec <* spaces1
+         <*> identifier <* spaces
+         <*> optionMaybe (char '=' *> spaces *> expr)
+         <*  tailingSep
 
-functionDecl :: CodaParser CFunDecl
+functionDecl :: CodaParser CFun
 functionDecl =
-    CFunDecl <$> optionMaybe (typeSpec <* spaces1)
-             <*> identifier <* spaces
-             <*> args <* spaces
-             <*> (    try (Just <$> compoundStmt)
-                  <|> (char ';' >> return Nothing))
+    CFun <$> optionMaybe (typeSpec <* spaces1)
+         <*> identifier <* spaces
+         <*> args <* spaces
+         <*> (    try (Just <$> compoundStmt)
+              <|> (char ';' >> return Nothing))
   where
     args = between (char '(' >> spaces) (spaces >> char ')')
                    (arg `sepBy` (spaces >> char ',' >> spaces))
@@ -109,7 +109,7 @@ multiplicativeExpr = binaryExpr [
     ] valueExpr
 
 valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
-            <|> try (CVar      <$> varExpr)
+            <|> try (CVariable <$> varExpr)
             <|> try (CLitteral <$> litteral)
             <|> try (between (char '(' >> spaces) (spaces >> char ')') expr)
   where

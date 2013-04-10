@@ -4,17 +4,15 @@ module Language.Coda.AST where
 import Data.Int (Int64)
 import Data.Text (Text)
 
-type AST = [CTopLevelDecl]
+type AST = [CTopLevel]
 
-data CTopLevelDecl = CTopLevelVarDecl CVarDecl | CTopLevelFunDecl CFunDecl
+data CTopLevel = CTopLevelVar CVar | CTopLevelFun CFun
     deriving (Show, Eq)
 
-data CVarDecl = CVarDecl (Maybe CTypeQual) CTypeArray CIdent
-                         (Maybe CExpr)
+data CVar = CVar (Maybe CTypeQual) CTypeArray CIdent (Maybe CExpr)
     deriving (Show, Eq)
 
-data CFunDecl = CFunDecl (Maybe CType) CIdent [CArgument]
-                         (Maybe CCompoundStmt)
+data CFun = CFun (Maybe CType) CIdent [CArgument] (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
 data CType = CInt | CBool deriving (Show, Eq)
@@ -32,15 +30,15 @@ data CArgument = CArgument (Maybe CTypeQual) CTypeArrayArg (Maybe CIdent)
 
 type CCompoundStmt = [CStmt]
 
-data CStmt = CDecl CVarDecl
+data CStmt = CDecl CVar
            | CAssign CVarExpr CExpr
-           | CExpr CExpr 
+           | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt
     deriving (Show, Eq)
 
 data CExpr = CCall CIdent [CExpr]
-           | CVar CVarExpr
+           | CVariable CVarExpr
            | CLitteral CLitteral
            | CBinOp CBinOp CExpr CExpr
     deriving (Show, Eq)
