@@ -1,18 +1,30 @@
 {-# LANGUAGE GADTs #-}
 -- | Définit le vérificateur sémantique et de typage.
-module Language.Coda.Checker (check) where
+module Language.Coda.Checker (CheckerError, check) where
 
-import Control.Monad.State.Lazy (State (..), evalState, get)
+import Control.Applicative ((<$>), (<*>))
+import Control.Monad.Error (ErrorT)
+import Control.Monad.State (State, evalState, get)
 import qualified Data.Map as M
 
 import Language.Coda.AST
 import Language.Coda.GAST
 
-data GVarIdentDyn where
-    GVarIdentDyn :: GVarIdent q a -> GVarIdentDyn
+-- | Utilise deux niveaux de monades lors de l'exécution du checker.
+--
+-- 'ErrorT' récupère les erreurs sémantiques ;
+-- 'State' maintient l'état des tables de symboles des variables et des
+-- fonctions.
+type Checker = ErrorT CheckerError (State CheckerState)
+
+type CheckerError = String
+
+data GVarDyn where
+    GVarDyn :: GVar q a -> GVarDyn
 
 data GFunIdentDyn where
-    GFunIdentDyn :: GFunIdent a -> GFunIdentDyn
+    GFunIdentDeclDyn :: GFunIdent a -> GFunIdentDyn
+    GFunIdentDefDyn  :: GFunIdent a -> GFunIdentDyn
 
 data CheckerState = CheckerState {
       csVars :: M.Map GIdent GVarIdentDyn, csFuns :: M.Map GIdent GFunIdentDyn
@@ -20,17 +32,43 @@ data CheckerState = CheckerState {
 
 -- | Vérifie la validité d'un arbre syntaxique non typé et retourne l'arbre
 -- typé correspondant.
-check :: AST -> GAST
-check ast = evalState (topLevel ast) initState
+check :: AST -> Either CheckerError GAST
+check ast = runChecker initState (topLevel ast)
   where
     initState = CheckerState M.empty M.empty
 
+    runChecker state = flip evalState state . runErrorT
+
     topLevel [] = return []
-    topLevel (CTopLevelVar (CVar qual type ident expr) : xs) = do
+    topLevel (CTopLevelVar v : xs) = (:) <$> var v <*> topLevel xs
+    topLevel (CTopLevelFun f : xs) =
+        let next = topLevel xs
+        in fun f >>= maybe next ((<$> next) . (:))
+
+    var (CVar qual type ident expr) = do
         st <- get
         case ident `M.lookup` csVars st of
-            Just _  -> fail "Variable already defined."
+            Just _  -> throwError "Variable already defined."
             Nothing -> 
-    topLevel (CTopLevelFun (CFun type ident args expr) : xs) = do
-        
 
+    fun (CFun type ident args (Just stmts)) = do
+        st <- get
+        case ident `M.lookup` csFuns st of
+            Just (GFunIdentDeclDyn declIdent) |  ->
+                
+            Just (GFunIdentDefDyn _) -> throwError "Multiple function definition."
+            Nothing -> 
+    fun (CFun type ident args Nothing) 
+        return Nothing
+
+funType :: CType -> [CArgument] -> GFun a
+funType type =
+    foldl' step (prim type)
+ where
+    prim (Just CInt)  = GFunRet GInt
+         (Just CBool) = GFunRet GBool
+         Nothing      = GFunVoid
+
+    step acc (CArgument qual (CTypeArrayArg CTypeArray Bool) CTypeArrayArg (Maybe CIdent)
+    
+    argType 

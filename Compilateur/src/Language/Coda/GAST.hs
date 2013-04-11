@@ -28,16 +28,24 @@ import Language.Coda.AST
 
 type GAST = [GTopLevel]
 
-data GTopLevel = GTopLevelVar GVar | GTopLevelFun GFun
+data GTopLevel where
+    GTopLevelVar :: GVar q a -> GTopLevel
+    GTopLevelFun :: GFun a   -> GTopLevel
 
-data GVar where
+type GIdent = CIdent
+
+data GVar q a where
     -- | Déclaration sans initialisation. Impose que la variable ne soit pas
     -- déclarée constante.
-    GVarDecl :: GVarIdent GTypeQualFree a -> GVar
-    GVarDef  :: GVarIdent q a -> GExpr a  -> GVar
+    GVarDecl :: GIdent -> GTypeArray GTypeQualFree a -> GVar q a
+    GVarDef  :: GIdent -> GTypeArray q a -> GExpr a  -> GVar q a
+    GVarArg  :: GIdent -> GTypeArray q a             -> GVar q a
 
-data GFun where
-    GFun :: GFunType a -> GFunIdent a -> GCompoundStmt a -> GFun
+data GFun a where
+    GFun       :: GIdent -> GType b       -> GFun b
+    GFunVoid   :: GIdent                  -> GFun ()
+    GFunArg    :: GTypeArg q a -> GFun b  -> GFun (GTypeArg q a -> b)
+    GFunVarArg :: GVar q a -> GFun b      -> GFun (GTypeArg q a -> b)
 
 type GInt  = CInt
 type GBool = CBool
@@ -63,11 +71,6 @@ data GTypeArg q a where
     GTypeArg              :: GTypeArray q a -> GTypeArg q a
     -- | Déclaration implicite de la dernière dimension du tableau.
     GTypeArgArrayImplicit :: GTypeArray q a -> GTypeArg q (GInt -> a)
-
-data GFunType a where
-    GFunRet  ::                 GType b    -> GFunType b
-    GFunVoid ::                               GFunType ()
-    GFunArg  :: GTypeArg q a -> GFunType b -> GFunType (a -> b)
 
 data GCompoundStmt a where
     -- | Défini un bloc vide. Pas de valeur de retour.
@@ -108,31 +111,13 @@ data GBinOp e r where
     GMod   :: GBinOp GInt  GInt
 
 data GCall a where
-    GCallNoArg :: GVarIdent q a             -> GCall a
+    GCallNoArg :: GFun a                    -> GCall a
     -- | Applique la fonction à son premier argument.
     GCallArg   :: GCall (a -> b) -> GExpr a -> GCall b
 
 data GVarExpr q a where
-    GVarExprPrim  :: GVarIdent q a                        -> GVarExpr q a
+    GVarExprPrim  :: GVar q a                             -> GVarExpr q a
     GVarExprArray :: GVarExpr q (GInt -> a) -> GExpr GInt -> GVarExpr q a
-
-type GIdent = CIdent
-
-data GVarIdent q a = GVarIdent GIdent (GTypeArray q a)
-
-instance Eq (GVarIdent q a) where
-    GVarIdent a _ == GVarIdent b _ = a == b
-
-instance Ord (GVarIdent q a) where
-    GVarIdent a _ `compare` GVarIdent b _ = a `compare` b
-
-data GFunIdent a = GFunIdent GIdent (GFunType a)
-
-instance Eq (GFunIdent a) where
-    GFunIdent a _ == GFunIdent b _ = a == b
-
-instance Ord (GFunIdent a) where
-    GFunIdent a _ `compare` GFunIdent b _ = a `compare` b
 
 data GLitteral a where
     GLitteralInt  :: GInt  -> GLitteral GInt

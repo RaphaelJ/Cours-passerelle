@@ -20,12 +20,14 @@ data CType = CInt | CBool deriving (Show, Eq)
 data CTypeArray = CTypeArray CType [CInt]
     deriving (Show, Eq)
 
-data CTypeArrayArg = CTypeArrayArg CTypeArray Bool
+-- | Contient le type d'un argument. Le boolen indique si la dernière dimension
+-- du type, si c'est un tableau, est implicite.
+data CTypeArg = CTypeArg CTypeArray Bool
     deriving (Show, Eq)
 
 data CTypeQual = CConst deriving (Show, Eq)
 
-data CArgument = CArgument (Maybe CTypeQual) CTypeArrayArg (Maybe CIdent)
+data CArgument = CArgument (Maybe CTypeQual) CTypeArg (Maybe CIdent)
     deriving (Show, Eq)
 
 type CCompoundStmt = [CStmt]
