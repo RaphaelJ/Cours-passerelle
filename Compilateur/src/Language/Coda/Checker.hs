@@ -20,11 +20,11 @@ type Checker = ErrorT CheckerError (State CheckerState)
 type CheckerError = String
 
 data GVarDyn where
-    GVarDyn :: GVar q a -> GVarDyn
+    GVarDyn :: GVar t q a -> GVarDyn
 
-data GFunIdentDyn where
-    GFunIdentDeclDyn :: GFunIdent a -> GFunIdentDyn
-    GFunIdentDefDyn  :: GFunIdent a -> GFunIdentDyn
+data GFunDyn where
+    GFunDeclDyn :: GFun a -> GFunDyn
+    GFunDefDyn  :: GFun a -> GFunDyn
 
 data CheckerState = CheckerState {
       csVars :: M.Map GIdent GVarIdentDyn, csFuns :: M.Map GIdent GFunIdentDyn

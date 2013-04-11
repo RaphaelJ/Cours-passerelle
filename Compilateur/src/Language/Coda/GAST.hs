@@ -29,23 +29,32 @@ import Language.Coda.AST
 type GAST = [GTopLevel]
 
 data GTopLevel where
-    GTopLevelVar :: GVar q a -> GTopLevel
-    GTopLevelFun :: GFun a   -> GTopLevel
+    GTopLevelVar :: GVar GVarTypeVar q a      -> GTopLevel
+    GTopLevelFun :: GFun a -> GCompoundStmt a -> GTopLevel
 
 type GIdent = CIdent
 
-data GVar q a where
+-- | Représente les informations d'une variable.
+-- Les trois types paramétriques fantômes permettent de spécifier le type de
+-- variable (variable ou argument d'une fonction), le qualifieur utilisé (const
+-- ou non) et le type de la variable.
+data GVar t q a where
     -- | Déclaration sans initialisation. Impose que la variable ne soit pas
     -- déclarée constante.
-    GVarDecl :: GIdent -> GTypeArray GTypeQualFree a -> GVar q a
-    GVarDef  :: GIdent -> GTypeArray q a -> GExpr a  -> GVar q a
-    GVarArg  :: GIdent -> GTypeArray q a             -> GVar q a
+    GVarDecl :: GIdent -> GTypeArray GTypeQualFree a -> GVar GVarTypeVar q a
+    GVarDef  :: GIdent -> GTypeArray q a -> GExpr a  -> GVar GVarTypeVar q a
+    -- | Déclare une variable à partir d'un argument. Contrairement à une
+    -- variable normale, la dernière dimension d'un tableau peut être omise.
+    GVarArg  :: GIdent -> GTypeArg q a               -> GVar GVarTypeArg q a
+
+data GVarTypeVar
+data GVarTypeArg
 
 data GFun a where
-    GFun       :: GIdent -> GType b       -> GFun b
-    GFunVoid   :: GIdent                  -> GFun ()
-    GFunArg    :: GTypeArg q a -> GFun b  -> GFun (GTypeArg q a -> b)
-    GFunVarArg :: GVar q a -> GFun b      -> GFun (GTypeArg q a -> b)
+    GFun       :: GIdent -> GType b              -> GFun b
+    GFunVoid   :: GIdent                         -> GFun ()
+    GFunArg    :: GTypeArg q a         -> GFun b -> GFun (GTypeArg q a -> b)
+    GFunVarArg :: GVar GVarTypeArg q a -> GFun b -> GFun (GTypeArg q a -> b)
 
 type GInt  = CInt
 type GBool = CBool
@@ -56,7 +65,7 @@ data GType a where
 
 data GQualifiedType q a = GQualifiedType (GTypeQual q) (GType a)
 
-data GTypeQual a where
+data GTypeQual q where
     GTypeQualFree  :: GTypeQual GTypeQualFree
     GTypeQualConst :: GTypeQual GTypeQualConst
 
@@ -81,7 +90,7 @@ data GCompoundStmt a where
 
 data GStmt a where
     GExpr   :: GExpr a                             -> GStmt a
-    GDecl   :: GVar                                -> GStmt ()
+    GDecl   :: GVar GVarTypeVar q a                -> GStmt ()
     -- | Impose que l'expression de gauche d'une assignation ne soit pas
     -- constante.
     GAssign :: GVarExpr GTypeQualFree a -> GExpr a -> GStmt ()
@@ -116,7 +125,7 @@ data GCall a where
     GCallArg   :: GCall (a -> b) -> GExpr a -> GCall b
 
 data GVarExpr q a where
-    GVarExprPrim  :: GVar q a                             -> GVarExpr q a
+    GVarExprPrim  :: GVar t q a                           -> GVarExpr q a
     GVarExprArray :: GVarExpr q (GInt -> a) -> GExpr GInt -> GVarExpr q a
 
 data GLitteral a where
