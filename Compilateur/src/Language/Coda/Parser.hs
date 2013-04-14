@@ -1,4 +1,4 @@
--- | Définit la fonction 'parse' qui génère un AST à partir d'un flux de
+-- | Définit un parser Parsec capable de gérérer un 'AST' à partir d'un flux de
 -- caractères (Lazy Text).
 module Language.Coda.Parser (CodaParser, parser) where
 
@@ -25,8 +25,7 @@ parser =
 
 variableDecl :: CodaParser CVar
 variableDecl =
-    CVar <$> typeQual
-         <*> typeArraySpec <* spaces1
+    CVar <$> typeArraySpec <* spaces1
          <*> identifier <* spaces
          <*> optionMaybe (char '=' *> spaces *> expr)
          <*  tailingSep
@@ -42,17 +41,14 @@ functionDecl =
     args = between (char '(' >> spaces) (spaces >> char ')')
                    (arg `sepBy` (spaces >> char ',' >> spaces))
 
-    arg = CArgument <$> typeQual
-                    <*> typeArrayArgSpec
+    arg = CArgument <$> typeArraySpec
+                    <*> (    (try $ subscript spaces >> return True)
+                         <|> return False)
                     <*> optionMaybe (try $ spaces1 *> identifier)
 
-    typeArrayArgSpec =
-        CTypeArrayArg <$> typeArraySpec
-                      <*> (    (try $ subscript spaces >> return True)
-                           <|> return False)
-
-typeQual :: CodaParser (Maybe CTypeQual)
-typeQual = optionMaybe $ try $ string "const" >> spaces1 >> return CConst
+typeQual :: CodaParser CQual
+typeQual =     try (string "const" >> spaces1 >> return CQualConst)
+           <|> return CQualFree
 
 typeSpec :: CodaParser CType
 typeSpec =     try (string "int"  >> return CInt)
@@ -60,7 +56,7 @@ typeSpec =     try (string "int"  >> return CInt)
 
 typeArraySpec :: CodaParser CTypeArray
 typeArraySpec =
-    CTypeArray <$> typeSpec <*> subscripts
+    CTypeArray <$> typeQual <*> typeSpec <*> subscripts
   where
     subscripts = many $ try $ spaces >> subscript integerLitteral
 

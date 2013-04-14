@@ -5,6 +5,7 @@ module Language.Coda.Checker (CheckerError, check) where
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad.Error (ErrorT)
 import Control.Monad.State (State, evalState, get)
+import Data.List
 import qualified Data.Map as M
 
 import Language.Coda.AST
@@ -20,55 +21,74 @@ type Checker = ErrorT CheckerError (State CheckerState)
 type CheckerError = String
 
 data GVarDyn where
-    GVarDyn :: GVar t q a -> GVarDyn
+    GVarDyn :: GVar t q a r -> GVarDyn
 
 data GFunDyn where
-    GFunDeclDyn :: GFun a -> GFunDyn
-    GFunDefDyn  :: GFun a -> GFunDyn
+    GFunDeclDyn :: GFun a r -> GFunDyn
+    GFunDefDyn  :: GFun a r -> GFunDyn
 
 data CheckerState = CheckerState {
-      csVars :: M.Map GIdent GVarIdentDyn, csFuns :: M.Map GIdent GFunIdentDyn
+      csVars :: M.Map GIdent GVarDyn, csFuns :: M.Map GIdent GFunDyn
     }
 
 -- | Vérifie la validité d'un arbre syntaxique non typé et retourne l'arbre
 -- typé correspondant.
 check :: AST -> Either CheckerError GAST
-check ast = runChecker initState (topLevel ast)
+check = undefined
+-- check ast = runChecker initState (topLevel ast)
+--   where
+--     initState = CheckerState M.empty M.empty
+-- 
+--     runChecker state = flip evalState state . runErrorT
+-- 
+--     topLevel [] = return []
+--     topLevel (CTopLevelVar v : xs) = (:) <$> var v <*> topLevel xs
+--     topLevel (CTopLevelFun f : xs) =
+--         let next = topLevel xs
+--         in fun f >>= maybe next ((<$> next) . (:))
+-- 
+--     var (CVar qual ret ident expr) = do
+--         st <- get
+--         case ident `M.lookup` csVars st of
+--             Just _  -> throwError "Variable already defined."
+--             Nothing -> 
+-- 
+--     fun (CFun ret ident args (Just stmts)) = do
+--         st <- get
+--         case ident `M.lookup` csFuns st of
+--             Just (GFunIdentDeclDyn declIdent) |  ->
+--                 
+--             Just (GFunIdentDefDyn _) -> throwError "Multiple function definition."
+--             Nothing -> 
+--     fun (CFun type ident args Nothing)
+--         return Nothing
+
+-- funType :: CIdent -> CType -> [CArgument] -> GFun a r
+-- funType ident t =
+--     foldl' step prim . reverse
+--  where
+--     prim = case t of
+--         Just CInt  -> GFun ident GInt
+--         Just CBool -> GFun ident GBool
+--         Nothing    -> GFunVoid ident
+-- 
+--     step acc (CArgument t hasImplDim _) = GFunArg (typeArg t hasImplDim) acc
+-- --     step acc (CArgument CTypeArray hasImplDim (Just ident)) =
+-- --         GFunVarArg acc
+-- 
+--     typeArg t False = GTypeArg              (arrayType t)
+--     typeArg t True  = GTypeArgArrayImplicit (arrayType t)
+
+arrayType :: CTypeArray -> GTypeArray q a r
+arrayType (CTypeArray qual t dims) =
+    foldl' GTypeArray prim $ reverse dims
   where
-    initState = CheckerState M.empty M.empty
+    t' = primType t
 
-    runChecker state = flip evalState state . runErrorT
+    prim = GTypeArrayPrim $ case qual of
+        CQualFree  -> GQualFree  t'
+        CQualConst -> GQualConst t'
 
-    topLevel [] = return []
-    topLevel (CTopLevelVar v : xs) = (:) <$> var v <*> topLevel xs
-    topLevel (CTopLevelFun f : xs) =
-        let next = topLevel xs
-        in fun f >>= maybe next ((<$> next) . (:))
-
-    var (CVar qual type ident expr) = do
-        st <- get
-        case ident `M.lookup` csVars st of
-            Just _  -> throwError "Variable already defined."
-            Nothing -> 
-
-    fun (CFun type ident args (Just stmts)) = do
-        st <- get
-        case ident `M.lookup` csFuns st of
-            Just (GFunIdentDeclDyn declIdent) |  ->
-                
-            Just (GFunIdentDefDyn _) -> throwError "Multiple function definition."
-            Nothing -> 
-    fun (CFun type ident args Nothing) 
-        return Nothing
-
-funType :: CType -> [CArgument] -> GFun a
-funType type =
-    foldl' step (prim type)
- where
-    prim (Just CInt)  = GFunRet GInt
-         (Just CBool) = GFunRet GBool
-         Nothing      = GFunVoid
-
-    step acc (CArgument qual (CTypeArrayArg CTypeArray Bool) CTypeArrayArg (Maybe CIdent)
-    
-    argType 
+primType :: CType -> GType a
+primType CInt  = GInt
+primType CBool = GBool

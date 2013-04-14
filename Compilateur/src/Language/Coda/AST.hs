@@ -1,4 +1,15 @@
--- | Définit les types liés à la définition de l'arbre syntaxique.
+-- | Définit les types liés à la définition de l\'arbre syntaxique.
+--
+-- Cet arbre est généré par le 'Parser'. Son typage et sa cohérence ne sont pas
+-- fortement assurés, contrairement au 'GAST' produit par le vérificateur
+-- sémantique. Toutes les instances de cet 'AST' ne sont donc pas nécessairement
+-- valides ni exécutables, contrairement au 'GAST'.
+--
+-- Étant le résultat direct du parseur, il s\'agit d\'une transcription
+-- quasiment à l\'identique de la grammaire EBNF du langage source.
+--
+-- Tous les noms des déclarations de ce fichier sont précédées d\'un C (pour
+-- Coda).
 module Language.Coda.AST where
 
 import Data.Int (Int64)
@@ -9,26 +20,32 @@ type AST = [CTopLevel]
 data CTopLevel = CTopLevelVar CVar | CTopLevelFun CFun
     deriving (Show, Eq)
 
-data CVar = CVar (Maybe CTypeQual) CTypeArray CIdent (Maybe CExpr)
+type CIdent = Text
+
+-- Types, variables et fonctions -----------------------------------------------
+
+data CVar = CVar CTypeArray CIdent (Maybe CExpr)
     deriving (Show, Eq)
 
 data CFun = CFun (Maybe CType) CIdent [CArgument] (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
+-- | Types primitifs.
 data CType = CInt | CBool deriving (Show, Eq)
 
-data CTypeArray = CTypeArray CType [CInt]
+-- | Permet de définir un type de variable ou de tableau, associé à un
+-- qualificateur.
+data CTypeArray = CTypeArray CQual CType [CInt]
     deriving (Show, Eq)
 
--- | Contient le type d'un argument. Le boolen indique si la dernière dimension
--- du type, si c'est un tableau, est implicite.
-data CTypeArg = CTypeArg CTypeArray Bool
+data CQual = CQualFree | CQualConst deriving (Show, Eq)
+
+-- | Contient la déclaration d\'un argument. Le booléen indique si la dernière
+-- dimension du type, dans le cas d\'un tableau, est implicite.
+data CArgument = CArgument CTypeArray Bool (Maybe CIdent)
     deriving (Show, Eq)
 
-data CTypeQual = CConst deriving (Show, Eq)
-
-data CArgument = CArgument (Maybe CTypeQual) CTypeArg (Maybe CIdent)
-    deriving (Show, Eq)
+-- Instructions et expressions -------------------------------------------------
 
 type CCompoundStmt = [CStmt]
 
@@ -52,8 +69,6 @@ data CBinOp = CAnd | COr
 
 data CVarExpr = CVarExpr CIdent [CExpr]
     deriving (Show, Eq)
-
-type CIdent = Text
 
 type CBool = Bool
 type CInt  = Int64
