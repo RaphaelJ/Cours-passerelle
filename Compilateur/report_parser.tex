@@ -1,0 +1,64 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[francais]{babel}
+\usepackage[babel=true]{csquotes}
+\usepackage{graphicx}
+\usepackage{listings}
+
+\pagestyle{headings}
+
+\title{Compilateur : Parseur}
+\author{Raphaël Javaux (groupe \#14)}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+  \section{Installation des dépendances}
+
+    \paragraph{}Le compilateur est écrit en Haskell et doit être compilé avec
+GHC. Le compilateur utilise Parsec, une librairie de combinateurs permettant de
+réaliser facilement des parseurs.
+
+    \paragraph{}Cabal un utilitaire permettant d'automatiser la compilation
+et l'installation de programmes écrits en Haskell (similaire aux Ruby Gems).
+
+    \paragraph{}GHC et cabal\footnote{Parfois nommé cabal-install} sont 
+disponibles dans les dépots de la plupart des distributions Linux. Pour les
+autres systèmes d'exploitation, un installateur combinant ces deux logiciels est
+disponible à cette adresse : http://www.haskell.org/platform/.
+
+    \paragraph{}Une fois GHC et cabal installés, il est possible d'installer les
+dépendances du compilateur en se plaçant à la racine du projet et en exécutant
+ces deux commandes :
+
+\begin{lstlisting}
+cabal update
+cabal install --only-dependencies
+\end{lstlisting}
+
+  \section{Compilation}
+
+    \paragraph{}Pour compiler le compilateur avec cabal, exécuter les deux
+commandes suivantes :
+
+\begin{lstlisting}
+cabal configure
+cabal build
+\end{lstlisting}
+
+    \paragraph{}L'exécutable compilé se nomme \textit{dist/build/coda/coda}.
+
+  \section{Exécution}
+
+    \paragraph{}Le compilateur accepte en entrée standard les sources et
+retourne sur la sortie standard l'arbre syntaxique résultat du parsing. Exemple
+d'utilisation pour obtenir l'arbre syntaxique correspondant au fichier source
+contenant le Quicksort :
+
+\begin{lstlisting}
+./dist/build/coda/coda < quicksort.coda
+\end{lstlisting}
+
+\end{document}

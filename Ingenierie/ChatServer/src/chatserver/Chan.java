@@ -1,5 +1,6 @@
 package chatserver;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -59,6 +60,25 @@ class Chan {
                 } else
                     return false;
             } 
+        }
+    }
+    
+    /**
+     * Envoie un message à l'ensemble des utilisateurs du salon.
+     * Appel bloquant.
+     * @param user_name
+     */
+    void sendMessage(String user_name, String message) throws IOException
+    {
+        Command cmd = new Command(
+            'M', '#' + this._name + " " + user_name + " " + message
+        );
+
+        synchronized (this._users) {
+            for (Map.Entry<String, Client> u : this._users.entrySet()) {
+                if (!u.getKey().equals(user_name))
+                    u.getValue().writeCommand(cmd);
+            }
         }
     }
     

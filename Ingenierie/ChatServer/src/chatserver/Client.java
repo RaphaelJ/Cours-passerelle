@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Gère un client connecté au serveur.
+ * Gère un client connecté au serveur en manipulant son socket TCP.
  */
 public class Client extends Thread {
     private final ChatServer _server;
@@ -33,29 +33,52 @@ public class Client extends Thread {
     {
         try {
             try {
+                System.out.println(
+                    "Client " + this._sock.getInetAddress().toString() +
+                    " connecté."
+                );
+                
                 this.authentification();
             } finally {
                 System.out.println(
                     "Client " + this._sock.getInetAddress().toString() +
-                    "déconnecté."
+                    " déconnecté."
                 );
                 this._sock.close(); // close() peut émettre une IOException.
             }
         } catch (IOException ex) {
             System.err.println(
                 "Exception sur le client " + 
-                this._sock.getInetAddress().toString() + ":"
+                this._sock.getInetAddress().toString() + " : "
             );
-            System.err.println("Client ");
             ex.printStackTrace();
         }
+    }
+    
+    /**
+     * Envoie la commande à l'utilisateur. Appel bloquant et réantrant.
+     * @param cmd 
+     */
+    public void writeCommand(Command cmd) throws IOException
+    {
+        this._out.writeCommand(cmd);
+    }
+    
+    /** 
+     * Envoie un message au client. Appel bloquant et réantrant.
+     * @param user_name Nom de l'utilisateur à l'origine du message.
+     */
+    public void sendMessage(String user_name, String message) throws IOException
+    {
+        Command cmd = new Command('M', user_name + " " + message);
+        this.writeCommand(cmd);
     }
     
     /** 
      * Gère l'état d'un utilisateur connecté au serveur mais dont
      * l'authentification n'a pas encore été validée.
      */
-    public void authentification() throws IOException 
+    private void authentification() throws IOException 
     {
         Command cmd = this._in.readCommand();
         
@@ -63,36 +86,41 @@ public class Client extends Thread {
         CommandArgsIterator args_it = (CommandArgsIterator) cmd.iterator();
         if (op == 'C' && args_it.hasNext()) {
             // Vérifie atomiquement si le nom d'utilisateur est déjà enregistré.
-            String name = args_it.remainder();
-            boolean existing;
-            Map<String, Client> users = this._server.getUsers();
-            synchronized (users) {
-                if (users.containsKey(name))
-                    existing = true;
-                else {
-                    existing = false;
-                    users.put(name, this);
-                }             
-            }
-            
-            if (existing) {
-                this._out.writeCommand(Errors.AlreadyUsedUsername);
-                this.authentification();     
-            } else {
-                // Authentification réussie. Change l'état du client.
-                try {
-                    this._out.writeCommand(Command.Ack);
-                    this.mainLoop(name);
-                } finally { 
-                    // Supprime de la liste des utilisateurs connectés lors
-                    // de la fin de la connexion.
-                    synchronized (users) {
-                        users.remove(name);
+            String user_name = args_it.next();
+            if (!args_it.hasNext()) {
+                boolean existing;
+                Map<String, Client> users = this._server.getUsers();
+                synchronized (users) {
+                    if (users.containsKey(user_name))
+                        existing = true;
+                    else {
+                        existing = false;
+                        users.put(user_name, this);
+                    }             
+                }
+
+                if (existing) {
+                    this.writeCommand(Errors.AlreadyUsedUsername);
+                    this.authentification();     
+                } else {
+                    // Authentification réussie. Change l'état du client.
+                    try {
+                        this.ack();
+                        this.mainLoop(user_name);
+                    } finally { 
+                        // Supprime de la liste des utilisateurs connectés lors
+                        // de la fin de la connexion.
+                        synchronized (users) { 
+                           users.remove(user_name);
+                        }
                     }
                 }
+            } else {
+                this.syntaxError();
+                this.authentification();
             }
         } else if (op != 'D') {
-            this._out.writeCommand(Errors.SyntaxError);
+            this.syntaxError();
             this.authentification();
         }
     }
@@ -100,7 +128,7 @@ public class Client extends Thread {
     /**
      * Gère les commandes d'un client autentifié.
      */
-    private void mainLoop(String name) throws IOException 
+    private void mainLoop(String user_name) throws IOException 
     {
         for (;;) {
             Command cmd = this._in.readCommand();
@@ -108,56 +136,188 @@ public class Client extends Thread {
             char op = cmd.getOperator();
             CommandArgsIterator args_it = (CommandArgsIterator) cmd.iterator();
             if (op == 'J')
-                this.joinChan(name, args_it);
-            else if (op == 'Q' && args.length == 1 && args[0].charAt(0) == '#')
-                this.quitChan(name, args[0].substring(0));
-            else if (op == 'M' && args.length >= 2)
-                this.message(user, args)
-            else if (op == 'W' && args.length >= 2)
-                // Whois
-            else if (op == 'L' && args.length >= 2)
-                // List Chan
-            else if (op == 'U' && args.length >= 2)
-                // List Chan Users
+                this.joinChan(user_name, args_it);
+            else if (op == 'Q')
+                this.quitChan(user_name, args_it);
+            else if (op == 'M')
+                this.message(user_name, args_it);
+            else if (op == 'W')
+                this.whois(args_it);
+            else if (op == 'L')
+                this.listChan(args_it);
+            else if (op == 'U')
+                this.listUsers(args_it);
             else if (op == 'E')
                this.serverExtensions(args_it);
             else if (op == 'D')
                 break;
             else
-                this._out.writeCommand(Errors.SyntaxError);
+                this.syntaxError();
+        }
+    }
+    
+    /* GESTION DES COMMANDES */
+
+    private void joinChan(String user_name, CommandArgsIterator args_it) 
+            throws IOException
+    {
+        if (args_it.hasNext()) {
+            String chan_arg = args_it.next();
+            if (!args_it.hasNext() && chan_arg.length() >= 2
+                    && chan_arg.charAt(0) == '#') {
+                String chan_name = chan_arg.substring(1);
+                if (!this._chans.containsKey(chan_name)) {
+                    Map<String, Chan> chans = this._server.getChans();
+                
+                    synchronized (chans) {
+                        Chan chan = chans.get(chan_name);
+                        if (chan != null)
+                            chan.joinChan(user_name, this);
+                        else {
+                            Chan newChan = new Chan(
+                                this._server, chan_name, user_name, this
+                            );
+                            chans.put(chan_name, newChan);
+                        }
+                    }
+                    this.ack();
+                } else
+                    this.writeCommand(Errors.ChanAlreadyJoined);
+            } else 
+                this.syntaxError();
+        } else
+            this.syntaxError();
+    }
+    
+    private void quitChan(String user_name, CommandArgsIterator args_it)
+            throws IOException
+    {
+        if (args_it.hasNext()) {
+            String chan_arg = args_it.next();
+            if (!args_it.hasNext() && chan_arg.length() >= 2
+                    && chan_arg.charAt(0) == '#') {
+                String chan_name = chan_arg.substring(1);
+                Chan chan = this._chans.get(chan_name);
+                if (chan != null) {
+                    chan.quitChan(user_name);
+                    this.ack();
+                } else
+                    this.writeCommand(Errors.ChanNotJoined);
+            } else 
+                this.syntaxError();
+        } else
+            this.syntaxError();
+    }
+
+    private void message(String user_name, CommandArgsIterator args_it)
+            throws IOException
+    {
+        if (args_it.hasNext()) {
+            String dest    = args_it.next();
+            String message = args_it.remainder();
+            
+            if (dest.length() >= 1 && !message.isEmpty()) {
+                if (dest.charAt(0) == '#') { // Message sur un salon
+                    String chan_name = dest.substring(1);
+                    if (!chan_name.isEmpty()) {
+                        Chan chan = this._chans.get(chan_name);
+                        if (chan != null)
+                            chan.sendMessage(user_name, message);
+                        else
+                            this.writeCommand(Errors.ChanNotJoined);
+                    } else
+                        this.syntaxError();
+                } else { // Message privé 
+                    Map<String, Client> users = this._server.getUsers();
+                    Boolean success; // Pour envoyer le feedback hors du lock
+                    synchronized (users) {
+                        Client dest_user = users.get(dest);
+                        if (users.containsKey(dest)) {
+                            dest_user.sendMessage(user_name, message);
+                            success = true;
+                        } else
+                            success = false;
+                    }
+                    
+                    if (success) 
+                        this.ack();
+                    else
+                        this.writeCommand(Errors.UnknownUsername);
+                }
+            } else 
+                this.syntaxError();
+        } else {
+            this.syntaxError();
         }
     }
 
-    private void joinChan(String user, CommandArgsIterator args_it)
+    private void whois(CommandArgsIterator args_it) throws IOException
     {
-        if (args_it.hasNext()) {
-            String chan = args_it.next();
-            if (!args_it.hasNext() && chan.charAt(0) == '#' 
-                    && chan.length() >= 2) {
-                String chan_name = chan.substring(1);
-                Map<String, Chan> chans = this._server.getChans();
-                synchronized (chans) {
-                    if (chans.containsKey(chan_name)) {
-                        chans.
-                    } else
-                        
+        if (args_it.hasNext()) {    
+            String user_name = args_it.next();
+            if (!args_it.hasNext()) {
+                Map<String, Client> users = this._server.getUsers();
+                
+                String[] chan_names = null;
+                synchronized (users) {
+                    Client user = users.get(user_name);
+                    if (user != null) {
+                        Map<String, Chan> chans = user._chans;
+                        synchronized (chans) {
+                            chan_names = chans.keySet().toArray(chan_names);
+                        }
+                    }
                 }
-                this._out.writeCommand(Command.Ack);
-            } else 
-                this._out.writeCommand(Errors.SyntaxError);
+                
+                // Envoie la réponse hors des verrous.
+                if (chan_names != null) {
+                    StringBuilder args = new StringBuilder("C");
+                    for (String name : chan_names) {
+                        args.append(" #");
+                        args.append(name);
+                    }
+                        
+                    this.writeCommand(new Command('I', args.toString()));
+                } else
+                    this.writeCommand(new Command('I', "D"));
+                
+                this.writeCommand(Command.Ack);
+            } else
+                this.syntaxError();
         } else
-            this._out.writeCommand(Errors.SyntaxError);
-            
+            this.syntaxError();
+    }
+
+    private void listChan(CommandArgsIterator args_it)
+    {
+        
+    }
+
+    private void listUsers(CommandArgsIterator args_it) 
+    {
+        
     }
 
     private void serverExtensions(CommandArgsIterator args_it) 
             throws IOException 
     {
         if (args_it.hasNext() && args_it.remainder().equals("version")) {
-            this._out.writeCommand(new Command(
+            this.writeCommand(new Command(
                 'E', "Raphael Javaux " + Config.VERSION
             ));
         } else
-            this._out.writeCommand(Errors.SyntaxError);
+            this.syntaxError();
     }
+    
+    /* UTILITAIRES */
+    
+    private void syntaxError() throws IOException
+    {
+        this.writeCommand(Errors.SyntaxError);
+    }
+    
+    private void ack() throws IOException
+    {
+        this.writeCommand(Command.Ack);
+    }     
 }

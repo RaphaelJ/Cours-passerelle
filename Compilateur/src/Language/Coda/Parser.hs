@@ -163,7 +163,7 @@ binaryExpr ops inner =
         go op -- Parce une occurrence suivante de ces mêmes opérateurs.
 
 -- | Parse une expression de définition ou de déréférencement d'une dimension
--- d'un tableau. Le parseur 'inner' parse le contenu entre [ et ]. Ignore les
+-- d'un tableau. Le parseur \'inner\' parse le contenu entre [ et ]. Ignore les
 -- espaces internes entourant ce parseur.
 subscript :: CodaParser a -> CodaParser a
 subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner

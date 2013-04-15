@@ -6,6 +6,7 @@ package chatserver;
 public final class Errors {
     // Erreurs de syntaxe.
     public static final Command SyntaxError         = error("1.1");
+    public static final Command UnknownExtension    = error("1.2");
     
     // Erreurs liées à une commande non autorisée.
     public static final Command NotAuthenticated    = error("2.1");
@@ -16,12 +17,13 @@ public final class Errors {
     
     // Erreurs liées à la connexion à un salon.
     public static final Command ChanNotJoined       = error("4.1");
+    public static final Command ChanAlreadyJoined   = error("4.2");
    
     /**
      * Instancie une commande d'erreur à partir d'un code d'erreur.
      */
     private static Command error(String code)
     {
-        return new Command('N', new String[] { code });
+        return new Command('N', code);
     }
 }

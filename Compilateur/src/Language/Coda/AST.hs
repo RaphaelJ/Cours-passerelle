@@ -1,9 +1,8 @@
 -- | Définit les types liés à la définition de l\'arbre syntaxique.
 --
 -- Cet arbre est généré par le 'Parser'. Son typage et sa cohérence ne sont pas
--- fortement assurés, contrairement au 'GAST' produit par le vérificateur
--- sémantique. Toutes les instances de cet 'AST' ne sont donc pas nécessairement
--- valides ni exécutables, contrairement au 'GAST'.
+-- fortement assurés, contrairement au 'TAST' produit par le vérificateur
+-- sémantique.
 --
 -- Étant le résultat direct du parseur, il s\'agit d\'une transcription
 -- quasiment à l\'identique de la grammaire EBNF du langage source.

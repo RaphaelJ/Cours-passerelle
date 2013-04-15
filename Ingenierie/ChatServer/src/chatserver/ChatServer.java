@@ -3,9 +3,7 @@ package chatserver;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
 /**
  * Gère la création des connexions des clients au serveur.
@@ -19,11 +17,6 @@ public class ChatServer  {
      * Salons actifs.
      */
     private Map<String, Chan> _chans = new TreeMap<>();
-
-    public static void main(String[] args) throws IOException 
-    {
-        new ChatServer().run();
-    }
 
     /**
      * Ouvre une socket TCP sur le port dédié et lance la gestion de chaque 

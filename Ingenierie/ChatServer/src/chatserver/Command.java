@@ -12,7 +12,7 @@ class Command implements Iterable<String> {
     /** 
      * Commande utilisée pour signaler le succès d'une opération.
      */
-    public static final Command Ack = new Command('K',"");
+    public static final Command Ack = new Command('K', "");
     
     private final char _operator;
     private final String _args;
