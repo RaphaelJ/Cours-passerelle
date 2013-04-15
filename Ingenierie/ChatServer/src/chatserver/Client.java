@@ -55,6 +55,11 @@ public class Client extends Thread {
         }
     }
     
+    public Map<String, Chan> getChans() 
+    {
+        return _chans;
+    }
+    
     /**
      * Envoie la commande à l'utilisateur. Appel bloquant et réantrant.
      * @param cmd 
@@ -108,11 +113,7 @@ public class Client extends Thread {
                         this.ack();
                         this.mainLoop(user_name);
                     } finally { 
-                        // Supprime de la liste des utilisateurs connectés lors
-                        // de la fin de la connexion.
-                        synchronized (users) { 
-                           users.remove(user_name);
-                        }
+                        this.disconnect();
                     }
                 }
             } else {
@@ -174,10 +175,9 @@ public class Client extends Thread {
                         if (chan != null)
                             chan.joinChan(user_name, this);
                         else {
-                            Chan newChan = new Chan(
+                            new Chan(
                                 this._server, chan_name, user_name, this
                             );
-                            chans.put(chan_name, newChan);
                         }
                     }
                     this.ack();
@@ -197,7 +197,7 @@ public class Client extends Thread {
             if (!args_it.hasNext() && chan_arg.length() >= 2
                     && chan_arg.charAt(0) == '#') {
                 String chan_name = chan_arg.substring(1);
-                Chan chan = this._chans.get(chan_name);
+                Chan chan = this.getChans().get(chan_name);
                 if (chan != null) {
                     chan.quitChan(user_name);
                     this.ack();
@@ -220,7 +220,7 @@ public class Client extends Thread {
                 if (dest.charAt(0) == '#') { // Message sur un salon
                     String chan_name = dest.substring(1);
                     if (!chan_name.isEmpty()) {
-                        Chan chan = this._chans.get(chan_name);
+                        Chan chan = this.getChans().get(chan_name);
                         if (chan != null)
                             chan.sendMessage(user_name, message);
                         else
@@ -262,7 +262,7 @@ public class Client extends Thread {
                 synchronized (users) {
                     Client user = users.get(user_name);
                     if (user != null) {
-                        Map<String, Chan> chans = user._chans;
+                        Map<String, Chan> chans = user.getChans();
                         synchronized (chans) {
                             chan_names = chans.keySet().toArray(chan_names);
                         }
@@ -320,4 +320,14 @@ public class Client extends Thread {
     {
         this.writeCommand(Command.Ack);
     }     
+
+    // Déconnecte l'utilisateur du serveur et des salons
+    private void disconnect()
+    {
+        Map<String, Client> users = this._server.getUsers();
+        synchronized (users) {
+            Map<String, Chan>
+            users.remove(user_name);
+        }
+    }
 }

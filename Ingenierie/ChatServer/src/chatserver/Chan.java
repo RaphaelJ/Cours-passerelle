@@ -14,7 +14,7 @@ class Chan {
     
     /**
      * Crée une nouveau salon avec un utilisateur.
-     * Rajoute le salon à la liste des salons du serveur.
+     * Rajoute le salon à la liste des salons du serveur et du client.
      */
     public Chan(
         ChatServer server, String name, String client_name, Client client
@@ -24,6 +24,7 @@ class Chan {
         this._name = name;
         this.joinChan(name, client);
         
+        // Ajoute le salon à la liste des salons du serveur.
         Map<String, Chan> chans = this._server.getChans();
         synchronized (chans) {
             chans.put(name, this);
@@ -32,34 +33,47 @@ class Chan {
     }
     
     /**
-     * Enregistre un utilisateur sur un salon. Ne modifie pas l'objet Client.
+     * Enregistre un utilisateur sur un salon.
+     * Met à jour la liste des utilisateurs du salon et la liste des salons de 
+     * l'utilisateur.
      */
     public void joinChan(String name, Client client)
     {
-        synchronized (this._users) {
-            this._users.put(name, client);
+        Map<String, Chan> user_chans = client.getChans();
+        synchronized (user_chans) {
+            synchronized (this._users) {
+                user_chans.put(name, this);
+                this._users.put(name, client);
+            }
         }
     }
     
     /**
-     * Retire un utilisateur du salon. Ne modifie pas l'objet Client.
+     * Retire un utilisateur du salon.
+     * Met à jour la liste des utilisateur du salon, la liste des salons du
+     * serveur et la liste des salons de l'utilisateur.
      * Retourne true si le salon est à présent vide et a été supprimé.
      */
-    public boolean quitChan(String name)
+    public boolean quitChan(String name, Client client)
     {
         // Verrouille les utilisateurs du chan et la liste des channels
         // pour garantir la coérence des informations (aucun autre thread ne
         // pourait accèder à un Chan vide).
         Map<String, Chan> chans = this._server.getChans();
-        synchronized (chans) {            
-            synchronized (this._users) { 
-                this._users.remove(name);
-                if (this._users.isEmpty()) {
-                    chans.remove(this._name);
-                    return true;
-                } else
-                    return false;
-            } 
+        synchronized (chans) {
+            Map<String, Chan> user_chans = client.getChans();
+            synchronized (user_chans) {
+                synchronized (this._users) { 
+                    this._users.remove(name);
+                    user_chans.remove(this._name);
+                    
+                    if (this._users.isEmpty()) {
+                        chans.remove(this._name);
+                        return true;
+                    } else
+                        return false;
+                } 
+            }
         }
     }
     

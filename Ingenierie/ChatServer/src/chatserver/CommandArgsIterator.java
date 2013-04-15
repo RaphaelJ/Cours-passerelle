@@ -18,7 +18,7 @@ public class CommandArgsIterator implements Iterator<String> {
     @Override
     public boolean hasNext()
     {
-        return this._args.length() == 0;
+        return this._args.length() > 0;
     }
     
     /**
