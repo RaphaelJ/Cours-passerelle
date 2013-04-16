@@ -196,13 +196,17 @@ public class Client extends Thread {
             String chan_arg = args_it.next();
             if (!args_it.hasNext() && chan_arg.length() >= 2
                     && chan_arg.charAt(0) == '#') {
-                String chan_name = chan_arg.substring(1);
-                Chan chan = this.getChans().get(chan_name);
-                if (chan != null) {
-                    chan.quitChan(user_name);
-                    this.ack();
-                } else
-                    this.writeCommand(Errors.ChanNotJoined);
+                synchronized (this._server.getChans()) {
+                    String chan_name = chan_arg.substring(1);
+                    synchronized (this._chans) {
+                        Chan chan = this._chans.get(chan_name);
+                        if (chan != null) {
+                            chan.quitChan(user_name, this);
+                            this.ack();
+                        } else
+                            this.writeCommand(Errors.ChanNotJoined);
+                    }
+                }
             } else 
                 this.syntaxError();
         } else
@@ -257,7 +261,6 @@ public class Client extends Thread {
             String user_name = args_it.next();
             if (!args_it.hasNext()) {
                 Map<String, Client> users = this._server.getUsers();
-                
                 String[] chan_names = null;
                 synchronized (users) {
                     Client user = users.get(user_name);
@@ -326,8 +329,15 @@ public class Client extends Thread {
     {
         Map<String, Client> users = this._server.getUsers();
         synchronized (users) {
-            Map<String, Chan>
-            users.remove(user_name);
+            synchronized (this._server.getChans()) {
+                synchronized (this._chans) {
+                    for (Chan chan : this._chans) {
+                        
+                    }
+                Map<String, Chan>
+                users.remove(user_name);
+                }
+            }
         }
     }
 }
