@@ -17,12 +17,12 @@ class Chan {
      * Rajoute le salon à la liste des salons du serveur et du client.
      */
     public Chan(
-        ChatServer server, String name, String client_name, Client client
+        ChatServer server, String name, String user_name, Client client
     )
     {
         this._server = server;
         this._name = name;
-        this.joinChan(name, client);
+        this.joinChan(user_name, client);
         
         // Ajoute le salon à la liste des salons du serveur.
         Map<String, Chan> chans = this._server.getChans();
@@ -37,13 +37,13 @@ class Chan {
      * Met à jour la liste des utilisateurs du salon et la liste des salons de 
      * l'utilisateur.
      */
-    public void joinChan(String name, Client client)
+    public void joinChan(String user_name, Client client)
     {
         Map<String, Chan> user_chans = client.getChans();
         synchronized (user_chans) {
             synchronized (this._users) {
-                user_chans.put(name, this);
-                this._users.put(name, client);
+                user_chans.put(this._name, this);
+                this._users.put(user_name, client);
             }
         }
     }
@@ -54,7 +54,7 @@ class Chan {
      * serveur et la liste des salons de l'utilisateur.
      * Retourne true si le salon est à présent vide et a été supprimé.
      */
-    public boolean quitChan(String name, Client client)
+    public boolean quitChan(String user_name, Client client)
     {
         // Verrouille les utilisateurs du chan et la liste des channels
         // pour garantir la coérence des informations (aucun autre thread ne
@@ -64,7 +64,7 @@ class Chan {
             Map<String, Chan> user_chans = client.getChans();
             synchronized (user_chans) {
                 synchronized (this._users) { 
-                    this._users.remove(name);
+                    this._users.remove(user_name);
                     user_chans.remove(this._name);
                     
                     if (this._users.isEmpty()) {

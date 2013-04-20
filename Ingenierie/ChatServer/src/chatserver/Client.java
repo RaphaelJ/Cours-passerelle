@@ -33,24 +33,14 @@ public class Client extends Thread {
     {
         try {
             try {
-                System.out.println(
-                    "Client " + this._sock.getInetAddress().toString() +
-                    " connecté."
-                );
-                
+                this.traceEvent("Client connecté");
                 this.authentification();
             } finally {
-                System.out.println(
-                    "Client " + this._sock.getInetAddress().toString() +
-                    " déconnecté."
-                );
+                this.traceEvent("Client déconnecté");
                 this._sock.close(); // close() peut émettre une IOException.
             }
         } catch (IOException ex) {
-            System.err.println(
-                "Exception sur le client " + 
-                this._sock.getInetAddress().toString() + " : "
-            );
+            this.traceEvent("Exception sur le client");
             ex.printStackTrace();
         }
     }
@@ -109,11 +99,14 @@ public class Client extends Thread {
                     this.authentification();     
                 } else {
                     // Authentification réussie. Change l'état du client.
+                    this.traceEvent(
+                        "Client authentifié en tant que " + user_name
+                    );
                     try {
                         this.ack();
                         this.mainLoop(user_name);
                     } finally { 
-                        this.disconnect();
+                        this.disconnect(user_name);
                     }
                 }
             } else {
@@ -145,7 +138,7 @@ public class Client extends Thread {
             else if (op == 'W')
                 this.whois(args_it);
             else if (op == 'L')
-                this.listChan(args_it);
+                this.listChans(args_it);
             else if (op == 'U')
                 this.listUsers(args_it);
             else if (op == 'E')
@@ -167,19 +160,28 @@ public class Client extends Thread {
             if (!args_it.hasNext() && chan_arg.length() >= 2
                     && chan_arg.charAt(0) == '#') {
                 String chan_name = chan_arg.substring(1);
-                if (!this._chans.containsKey(chan_name)) {
-                    Map<String, Chan> chans = this._server.getChans();
                 
-                    synchronized (chans) {
-                        Chan chan = chans.get(chan_name);
-                        if (chan != null)
-                            chan.joinChan(user_name, this);
-                        else {
-                            new Chan(
-                                this._server, chan_name, user_name, this
-                            );
-                        }
+                Map<String, Chan> chans = this._server.getChans();
+                boolean already_joined;
+                synchronized (chans) {
+                    synchronized (this._chans) {
+                        if (!this._chans.containsKey(chan_name)) {
+                            Chan chan = chans.get(chan_name);
+                            if (chan != null)
+                                chan.joinChan(user_name, this);
+                            else {
+                                new Chan(
+                                    this._server, chan_name, user_name, this
+                                );
+                            }
+                            already_joined = false;
+                        } else
+                            already_joined = true;
                     }
+                }
+                
+                if (!already_joined) {
+                    this.traceEvent("Rejoint le salon " + chan_name);
                     this.ack();
                 } else
                     this.writeCommand(Errors.ChanAlreadyJoined);
@@ -196,17 +198,24 @@ public class Client extends Thread {
             String chan_arg = args_it.next();
             if (!args_it.hasNext() && chan_arg.length() >= 2
                     && chan_arg.charAt(0) == '#') {
+                String chan_name = chan_arg.substring(1);
+                boolean not_joined;
                 synchronized (this._server.getChans()) {
-                    String chan_name = chan_arg.substring(1);
                     synchronized (this._chans) {
                         Chan chan = this._chans.get(chan_name);
                         if (chan != null) {
                             chan.quitChan(user_name, this);
-                            this.ack();
+                            not_joined = false;
                         } else
-                            this.writeCommand(Errors.ChanNotJoined);
+                            not_joined = true;
                     }
                 }
+                
+                if (!not_joined) {
+                    this.traceEvent("Quitte le salon " + chan_name);
+                    this.ack();
+                } else
+                    this.writeCommand(Errors.ChanNotJoined);
             } else 
                 this.syntaxError();
         } else
@@ -224,10 +233,16 @@ public class Client extends Thread {
                 if (dest.charAt(0) == '#') { // Message sur un salon
                     String chan_name = dest.substring(1);
                     if (!chan_name.isEmpty()) {
-                        Chan chan = this.getChans().get(chan_name);
-                        if (chan != null)
+                        Chan chan;
+                        synchronized (this._chans) {
+                            chan = this._chans.get(chan_name);
+                        }
+                        
+                        if (chan != null) {
+                            this.traceEvent("Message sur #" + chan_name);
                             chan.sendMessage(user_name, message);
-                        else
+                            this.ack();
+                        } else
                             this.writeCommand(Errors.ChanNotJoined);
                     } else
                         this.syntaxError();
@@ -243,9 +258,10 @@ public class Client extends Thread {
                             success = false;
                     }
                     
-                    if (success) 
+                    if (success) {
+                        this.traceEvent("Message à " + dest);
                         this.ack();
-                    else
+                    } else
                         this.writeCommand(Errors.UnknownUsername);
                 }
             } else 
@@ -255,6 +271,9 @@ public class Client extends Thread {
         }
     }
 
+    /**
+     * Liste les salons auxquels un utilisateur est connecté.
+     */
     private void whois(CommandArgsIterator args_it) throws IOException
     {
         if (args_it.hasNext()) {    
@@ -267,7 +286,7 @@ public class Client extends Thread {
                     if (user != null) {
                         Map<String, Chan> chans = user.getChans();
                         synchronized (chans) {
-                            chan_names = chans.keySet().toArray(chan_names);
+                            chan_names = chans.keySet().toArray(new String[0]);
                         }
                     }
                 }
@@ -284,6 +303,7 @@ public class Client extends Thread {
                 } else
                     this.writeCommand(new Command('I', "D"));
                 
+                this.traceEvent("Whois sur " + user_name);
                 this.writeCommand(Command.Ack);
             } else
                 this.syntaxError();
@@ -291,14 +311,84 @@ public class Client extends Thread {
             this.syntaxError();
     }
 
-    private void listChan(CommandArgsIterator args_it)
+    /**
+     * Liste les salons du serveur.
+     */
+    private void listChans(CommandArgsIterator args_it) throws IOException
     {
-        
+        if (!args_it.hasNext()) {
+            Map<String, Chan> chans = this._server.getChans();
+            String[] chan_names;
+            synchronized (chans) {
+                chan_names = chans.keySet().toArray(new String[0]);
+            }
+            
+            Command cmd;
+            if (chan_names.length > 0) {
+                StringBuilder args = new StringBuilder();
+                for (String name : chan_names) {
+                    args.append(" #");
+                    args.append(name);
+                }
+
+                cmd = new Command('I', args.toString().substring(1));
+            } else
+                cmd = new Command('I', "");
+
+            this.traceEvent("Listage des salons");
+            this.writeCommand(cmd);
+            this.ack();
+        } else
+            this.syntaxError();
     }
 
-    private void listUsers(CommandArgsIterator args_it) 
+    /**
+     * Liste les utilisateurs d'un salon.
+     */
+    private void listUsers(CommandArgsIterator args_it) throws IOException 
     {
-        
+        if (args_it.hasNext()) {
+            String chan_arg = args_it.next();
+            if (!args_it.hasNext() && chan_arg.length() >= 2
+                    && chan_arg.charAt(0) == '#') {
+                String chan_name = chan_arg.substring(1);
+                Map<String, Chan> chans = this._server.getChans();
+                String[] user_names;
+                synchronized (chans) {
+                    Chan chan = chans.get(chan_name);
+                    if (chan != null) {
+                        Map<String, Client> users = chan.getUsers();
+                        synchronized (users) {
+                            user_names = users.keySet().toArray(new String[0]);
+                        }
+                    } else
+                        user_names = null;
+                }
+                
+                if (user_names != null) {
+                    Command cmd;
+                    if (user_names.length > 0) {
+                        StringBuilder args = new StringBuilder();
+                        for (String name : user_names) {
+                            args.append(' ');
+                            args.append(name);
+                        }
+
+                        cmd = new Command('I', args.toString().substring(1));
+                    } else
+                        cmd = new Command('I', "");
+                    
+                    this.traceEvent(
+                        "Listage des utilisateurs de #" + chan_name
+                    );
+                    this.writeCommand(cmd);
+                    this.ack();
+                } else
+                    this.writeCommand(Errors.ChanNotFound);
+            } else 
+                this.syntaxError();
+        } else
+            this.syntaxError();
     }
 
     private void serverExtensions(CommandArgsIterator args_it) 
@@ -311,6 +401,22 @@ public class Client extends Thread {
         } else
             this.syntaxError();
     }
+
+    // Déconnecte l'utilisateur du serveur et des salons.
+    private void disconnect(String user_name)
+    {
+        Map<String, Client> users = this._server.getUsers();
+        synchronized (users) {
+            synchronized (this._server.getChans()) {
+                synchronized (this._chans) {
+                    for (Chan chan : this._chans.values())
+                        chan.quitChan(user_name, this);
+                    
+                    users.remove(user_name);
+                }
+            }
+        }
+    }
     
     /* UTILITAIRES */
     
@@ -322,22 +428,15 @@ public class Client extends Thread {
     private void ack() throws IOException
     {
         this.writeCommand(Command.Ack);
-    }     
-
-    // Déconnecte l'utilisateur du serveur et des salons
-    private void disconnect()
+    }
+    
+    /**
+     * Affiche un message lié d'information avec les informations du socket.
+     */
+    private void traceEvent(String desc)
     {
-        Map<String, Client> users = this._server.getUsers();
-        synchronized (users) {
-            synchronized (this._server.getChans()) {
-                synchronized (this._chans) {
-                    for (Chan chan : this._chans) {
-                        
-                    }
-                Map<String, Chan>
-                users.remove(user_name);
-                }
-            }
-        }
+        System.out.println(
+            "[" + this._sock.getInetAddress().toString() + "] " + desc
+        );
     }
 }

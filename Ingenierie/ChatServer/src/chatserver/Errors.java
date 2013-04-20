@@ -15,9 +15,10 @@ public final class Errors {
     public static final Command AlreadyUsedUsername = error("3.1");
     public static final Command UnknownUsername     = error("3.2");
     
-    // Erreurs liées à la connexion à un salon.
+    // Erreurs liées aux salons.
     public static final Command ChanNotJoined       = error("4.1");
     public static final Command ChanAlreadyJoined   = error("4.2");
+    public static final Command ChanNotFound        = error("4.3");
    
     /**
      * Instancie une commande d'erreur à partir d'un code d'erreur.
