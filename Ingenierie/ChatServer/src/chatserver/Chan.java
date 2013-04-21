@@ -82,15 +82,15 @@ class Chan {
      * Appel bloquant.
      * @param user_name
      */
-    void sendMessage(String user_name, String message) throws IOException
+    public void sendMessage(String author, String message) throws IOException
     {
         Command cmd = new Command(
-            'M', '#' + this._name + " " + user_name + " " + message
+            'M', '#' + this._name + " " + author + " " + message
         );
 
         synchronized (this._users) {
             for (Map.Entry<String, Client> u : this._users.entrySet()) {
-                if (!u.getKey().equals(user_name))
+                if (!u.getKey().equals(author))
                     u.getValue().writeCommand(cmd);
             }
         }

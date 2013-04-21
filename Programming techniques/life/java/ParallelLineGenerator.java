@@ -19,7 +19,9 @@ public class ParallelLineGenerator implements ILifeGenerator {
         int i_start = 0;
         Thread[] tids = new Thread[n_threads - 1];
         for (int i = 0; i < n_threads - 1; i++) {
-            tids[i] = new GeneratorThread(res, w, h, i_start, n_per_threads);
+            tids[i] = new Thread(
+                new Generator(res, w, h, i_start, n_per_threads)
+            );
             tids[i].start();
             i_start += n_per_threads;
         }
@@ -28,7 +30,7 @@ public class ParallelLineGenerator implements ILifeGenerator {
         // the last segment will contain the remainder of cells.
         // Doesn't execute the last segment in a new thread: uses the current
         // context.
-        new GeneratorThread(res, w, h, i_start, n - i_start).run();
+        new Generator(res, w, h, i_start, n - i_start).run();
 
         // Waits for childs to finish.
         for (Thread tid : tids)
@@ -37,30 +39,36 @@ public class ParallelLineGenerator implements ILifeGenerator {
         return res;
     }
 
-    private class GeneratorThread extends Thread ()
+    private class Generator implements Runnable
     {
-        private boolean[][] _res;
-        private int _w;
-        private int _h;
-        private int _start_x;
-        private int _start_y;
-        private int _n;
-
+        private final boolean[][] _res;
+        private final int _w;
+        private final int _h;
+        private final int _start_i;
+        private final int _n;
+ 
+        /**
+         * Computes a segment of the board of n cells starting at start_i.
+         */
         public GeneratorThread(
-            boolean[][] res, int w, int h, int start_x, int start_y, int n
+            boolean[][] res, int w, int h, int start_i, int n
         )
         {
             this._res = res;
             this._w = w;
             this._h = h;
-            this._start_x = start_x;
-            this._start_y = start_y;
+            this._start_i = start_i;
             this._n = n;
         }
 
         public void run()
         {
-            
+            int x = this._start_i % w;
+              , y = this._start_i / w;
+
+            for (int i = 0; i < this._n; i++) {
+                if (x > 0)
+            }
         }
     }
 }

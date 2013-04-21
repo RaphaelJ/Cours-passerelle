@@ -8,7 +8,7 @@ import java.util.Calendar;
 class Life {
     /**
      * Precomputes coordinates for each dimension of the board.
-     * This increases the speed of the algorithm by ~40%.
+     * This increases the speed of the algorithm by 1.4x.
      * A such lookup table is kept between each generation of the GoL board
      * and is used by the nextCellState() method.
      */
@@ -95,7 +95,7 @@ class Life {
         //         n++;
         // }
 
-        // Unrolling the previous loop by using an array of short gived me
+        // Unrolling the previous loop and using an array of shorts gived me
         // 5x speedup.
 
         int n = this._board[y1][x1] + this._board[y1][x ] + this._board[y1][x2]
@@ -142,7 +142,7 @@ class Life {
     public static void main(String[] args)
     {
         if (args.length != 2)
-            System.out.println("USAGE: java Life <square size> <# of threads>");
+            System.out.println("USAGE: java Life <board size> <# of threads>");
         else {
             int size        = Integer.parseInt(args[0]);
             int num_threads = Integer.parseInt(args[1]);
@@ -150,7 +150,7 @@ class Life {
             Life origin = new Life(randomBoard(size, size));
 
             testGenerator(origin, new SequentialGenerator());
-//             testGenerator(origin, new ParallelLineGenerator(num_threads));
+            testGenerator(origin, new ParallelLineGenerator(num_threads));
         }
     }
 

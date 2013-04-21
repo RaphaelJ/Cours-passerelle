@@ -20,10 +20,9 @@
     \paragraph{Remarque concernant les acteurs} J'ai représenté les parties
 du serveur comme étant des acteurs par rapport au système client.
 Je justifie ceci par le fait que cette partie du système n’interagit par
-directement avec l'\textit{utilisateur}, et n'est donc pas en lien direct avec
-ce dernier comme le sont les \textit{use-cases} de la partie client.
-Au contraire, les acteurs de la partie serveur fournissent des services à
-la partie client.
+directement avec l'\textit{utilisateur}, contrairement aux \textit{use-cases}.
+Les acteurs de la partie serveur sont des fournisseurs de services pour la 
+partie client.
 
   \subsection{Description textuelle}
 
@@ -76,8 +75,8 @@ la partie client.
     \end{center}
 
     \paragraph{}Si l'utilisateur renseigné n'est pas enregistré auprès du
-    serveur, alors le logiciel client indique à l'\textit{utilisateur} que
-    celui-ci n'est pas connecté.
+    serveur, alors le logiciel client indique à l'\textit{utilisateur} du client
+    que ce premier n'est pas connecté.
 
     \subsubsection{Connexion à un salon}
 
@@ -245,20 +244,30 @@ la partie client.
         \end{tabular}
     \end{center}
 
- \subsection{Diagramme}
+ \subsection{Diagramme des cas d'utilisation}
 
-    \begin{figure}[p]
-        \makebox[\linewidth]{
-            \includegraphics[width=1.9\linewidth,angle=90]{use_case.png}
-        }
-    \end{figure}
+    \includegraphics[angle=90,width=0.9\linewidth]{use_case.png}
 
 \section{Diagramme de structure statique}
 
-    \begin{figure}[p]
-        \makebox[\linewidth]{
-            \includegraphics[width=1.9\linewidth,angle=90]{structure_statique.png}
-        }
-    \end{figure}
+    \includegraphics[angle=90,width=0.9\linewidth]{structure_statique.png}
+
+\section{Diagramme à états}
+
+    \includegraphics[angle=90,width=0.9\linewidth]{state.png}
+
+\section{Documentation de la partie serveur}
+
+ \subsection{Diagramme de classes du logiciel serveur}
+
+    \includegraphics[angle=90,width=0.9\linewidth]{class.png}
+
+ \subsection{Interaction typique entre un client et le serveur}
+
+    \paragraph{}Représente une interaction typique entre le logiciel client et
+les classes \textit{ChatServer}, \textit{Client} et \textit{Chan} du logiciel
+serveur.
+
+    \includegraphics[angle=90,width=1\linewidth]{sequence.png}
 
 \end{document}

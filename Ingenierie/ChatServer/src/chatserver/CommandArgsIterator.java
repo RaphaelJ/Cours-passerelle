@@ -45,7 +45,8 @@ public class CommandArgsIterator implements Iterator<String> {
     
     /**
      * Retourne le reste de la chaine d'argument. Ne modifie pas l'état de
-     * l'itérateur.
+     * l'itérateur. Utilisé dans les messages où toute la fin de la commande
+     * constitue le contenu du message.
      */
     public String remainder()
     {

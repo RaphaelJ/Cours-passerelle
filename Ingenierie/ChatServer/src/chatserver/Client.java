@@ -1,6 +1,7 @@
 package chatserver;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Map;
 import java.util.TreeMap;
@@ -63,11 +64,13 @@ public class Client extends Thread {
      * Envoie un message au client. Appel bloquant et réantrant.
      * @param user_name Nom de l'utilisateur à l'origine du message.
      */
-    public void sendMessage(String user_name, String message) throws IOException
+    public void sendMessage(String author, String message) throws IOException
     {
-        Command cmd = new Command('M', user_name + " " + message);
+        Command cmd = new Command('M', author + " " + message);
         this.writeCommand(cmd);
     }
+    
+    /* GESTION DE LA CONNEXION */
     
     /** 
      * Gère l'état d'un utilisateur connecté au serveur mais dont
@@ -181,7 +184,7 @@ public class Client extends Thread {
                 }
                 
                 if (!already_joined) {
-                    this.traceEvent("Rejoint le salon " + chan_name);
+                    this.traceEvent("Rejoint le salon #" + chan_name);
                     this.ack();
                 } else
                     this.writeCommand(Errors.ChanAlreadyJoined);
@@ -212,7 +215,7 @@ public class Client extends Thread {
                 }
                 
                 if (!not_joined) {
-                    this.traceEvent("Quitte le salon " + chan_name);
+                    this.traceEvent("Quitte le salon #" + chan_name);
                     this.ack();
                 } else
                     this.writeCommand(Errors.ChanNotJoined);
@@ -402,7 +405,9 @@ public class Client extends Thread {
             this.syntaxError();
     }
 
-    // Déconnecte l'utilisateur du serveur et des salons.
+    /**
+     * Déconnecte l'utilisateur du serveur et des salons.
+     */
     private void disconnect(String user_name)
     {
         Map<String, Client> users = this._server.getUsers();
@@ -435,8 +440,14 @@ public class Client extends Thread {
      */
     private void traceEvent(String desc)
     {
+        InetSocketAddress addr = 
+                (InetSocketAddress) this._sock.getRemoteSocketAddress();
+        
+        // Génère une couleur unique à partir du port du client
+        int color_code = addr.getPort() % 6 + 1;
+
         System.out.println(
-            "[" + this._sock.getInetAddress().toString() + "] " + desc
-        );
+            "\033[1;3"+ color_code +"m[" + addr.toString() + "]\033[0m " +
+            desc);
     }
 }

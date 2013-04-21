@@ -25,15 +25,18 @@ public class CommandReader {
     {
         StringBuilder builder = new StringBuilder();
         
-        char c;
+        int c;
         
         // Ignore les commandes vides.
-        while ((c = (char) this._in.read()) == Config.COMMAND_SEP) { }
+        while ((c = this._in.read()) == Config.COMMAND_SEP) { }
         
         // Lit jusqu'au séparateur des commandes.
         do 
-            builder.append(c);
-        while ((c = (char) this._in.read()) != Config.COMMAND_SEP);
+            builder.append((char) c);
+        while ((c = this._in.read()) != Config.COMMAND_SEP && c != -1);
+        
+        if (c == -1)
+            throw new IOException("Socket closed.");
         
         return new Command(builder.toString());
     }
