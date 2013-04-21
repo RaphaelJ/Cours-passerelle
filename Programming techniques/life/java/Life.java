@@ -65,7 +65,7 @@ class Life {
         this._index = index;
     }
 
-    public Life nextState(ILifeGenerator gen)
+    public Life nextState(ILifeGenerator gen) throws Exception
     {
         short[][] res = gen.compute(this);
 
@@ -139,7 +139,7 @@ class Life {
 
     // ===== Static methods =====
 
-    public static void main(String[] args)
+    public static void main(String[] args) throws Exception
     {
         if (args.length != 2)
             System.out.println("USAGE: java Life <board size> <# of threads>");
@@ -155,6 +155,7 @@ class Life {
     }
 
     private static void testGenerator(Life origin, ILifeGenerator gen)
+        throws Exception
     {
         long start = Calendar.getInstance().getTimeInMillis();
 
