@@ -13,53 +13,38 @@ class Life {
      * and is used by the nextCellState() method.
      */
     private class IndexLookupTable {
-        public final int[] x1s;
-        public final int[] x2s;
-        public final int[] y1s;
-        public final int[] y2s;
+        public final int[] prev;
+        public final int[] next;
 
-        public IndexLookupTable(int w, int h)
+        public IndexLookupTable(int size)
         {
-            this.x1s = new int[w];
-            this.x1s[0] = w - 1;
-            for (int i = 1; i < w; i++)
-                this.x1s[i] = i - 1;
+            this.prev = new int[size];
+            this.prev[0] = size - 1;
+            for (int i = 1; i < size; i++)
+                this.prev[i] = i - 1;
 
-            this.x2s = new int[w];
-            this.x2s[w - 1] = 0;
-            for (int i = 0; i < w - 1; i++)
-                this.x2s[i] = i + 1;
-
-            this.y1s = new int[h];
-            this.y1s[0] = h - 1;
-            for (int i = 1; i < h; i++)
-                this.y1s[i] = i - 1;
-
-            this.y2s = new int[h];
-            this.y2s[h - 1] = 0;
-            for (int i = 0; i < h - 1; i++)
-                this.y2s[i] = i + 1;
+            this.next = new int[size];
+            this.next[size - 1] = 0;
+            for (int i = 0; i < size - 1; i++)
+                this.next[i] = i + 1;
         }
     }
 
-    private final int _w;
-    private final int _h;
+    private final int _size;
     private final short[][] _board;
     private final IndexLookupTable _index;
 
     public Life(short[][] board)
     {
-        this._h = board.length;
-        this._w = this._h == 0 ? 0 : board[0].length;
+        this._size = board.length;
 
         this._board = board;
-        this._index = new IndexLookupTable(this._w, this._h);
+        this._index = new IndexLookupTable(this._size);
     }
 
     private Life(short[][] board, IndexLookupTable index)
     {
-        this._h = board.length;
-        this._w = this._h == 0 ? 0 : board[0].length;
+        this._size = board.length;
 
         this._board = board;
         this._index = index;
@@ -78,10 +63,10 @@ class Life {
      */
     public short nextCellState(int x, int y)
     {
-        int x1 = this._index.x1s[x],
-            x2 = this._index.x1s[x],
-            y1 = this._index.x1s[y],
-            y2 = this._index.x1s[y];
+        int x1 = this._index.prev[x],
+            x2 = this._index.next[x],
+            y1 = this._index.prev[y],
+            y2 = this._index.next[y];
 
         // short[] neighbours = new short[] {
         //      this._board[y1][x1], this._board[y1][x ], this._board[y1][x2],
@@ -125,19 +110,14 @@ class Life {
         return str.toString();
     }
 
-    // ===== Getters ====
+    /* Getters */
 
-    public int getW()
+    public int getSize()
     {
-        return this._w;
+        return this._size;
     }
 
-    public int getH()
-    {
-        return this._h;
-    }
-
-    // ===== Static methods =====
+    /* Static methods */
 
     public static void main(String[] args) throws Exception
     {
@@ -147,7 +127,7 @@ class Life {
             int size        = Integer.parseInt(args[0]);
             int num_threads = Integer.parseInt(args[1]);
 
-            Life origin = new Life(randomBoard(size, size));
+            Life origin = new Life(randomBoard(size));
 
             testGenerator(origin, new SequentialGenerator());
             testGenerator(origin, new ParallelSegmentGenerator(
@@ -157,6 +137,7 @@ class Life {
                 num_threads,
                 new ParallelSegmentGenerator.ColumnSegmentGenerator()
             ));
+//             testGenerator(origin, new ParallelBlockGenerator(num_threads));
         }
     }
 
@@ -174,12 +155,12 @@ class Life {
         );
     }
 
-    public static short[][] randomBoard(int w, int h)
+    public static short[][] randomBoard(int size)
     {
-        short[][] board = new short[h][w];
+        short[][] board = new short[size][size];
 
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
                 if (Math.random() > 0.5)
                     board[y][x] = 1;
                 else

@@ -8,16 +8,15 @@ import Data.Word
 import System.Random
 
 w, h :: Int
-(w, h) = (1000, 1000)
+(w, h) = (1024, 1024)
 
 type Board r = Array r DIM2 Word8
 
 main :: IO ()
-main = print $ nextGen board ! (Z :. 0 :. 1)
--- main = defaultMain [
---       bench "Single thread" $ whnf (computeUnboxedS . nextGen) board
---     , bench "Parallel" $ whnfIO $ computeUnboxedP $ nextGen $ board
---     ]
+main = defaultMain [
+      bench "Single thread" $ whnf (computeUnboxedS . step) board
+    , bench "Parallel" $ whnfIO $ computeUnboxedP $ step $ board
+    ]
   where
     size = Z :. h :. w
     w1 = w - 1
@@ -25,14 +24,13 @@ main = print $ nextGen board ! (Z :. 0 :. 1)
 
     board :: Board U
     !board = fromListUnboxed size $ take (w * h) $
-        map (\v -> (if v then 1 else 0)) $ randoms (mkStdGen 1)
+        map (\v -> if v then 1 else 0) $ randoms (mkStdGen 1)
     !x1s = fromListUnboxed (Z :. w) (w-1 : [0..(w-2)])
     !x2s = fromListUnboxed (Z :. w) ([1..(w-1)] ++ [0])
     !y1s = fromListUnboxed (Z :. h) (h-1 : [0..(h-2)])
     !y2s = fromListUnboxed (Z :. h) ([1..(h-1)] ++ [0])
 
-    nextGen :: Board U -> Board D 
-    nextGen board = fromFunction size $ \(Z :. y :. x) ->
+    step board = fromFunction size $ \(Z :. y :. x) ->
         let x1 = x1s `unsafeIndex` (Z :. x)
             x2 = x2s `unsafeIndex` (Z :. x)
             y1 = y1s `unsafeIndex` (Z :. y)
@@ -47,5 +45,5 @@ main = print $ nextGen board ! (Z :. 0 :. 1)
             g    = board `unsafeIndex` (Z :. y2 :. x )
             h    = board `unsafeIndex` (Z :. y2 :. x2)
             n = a + b + c + d + e + f + g + h
-        in if n == 3 || (n == 2 && cell == 1) then 1 else 0
-    {-# INLINE nextGen #-}
+        in n == 3 || (n == 2 && cell == 1)
+    {-# INLINE step #-}
