@@ -150,7 +150,13 @@ class Life {
             Life origin = new Life(randomBoard(size, size));
 
             testGenerator(origin, new SequentialGenerator());
-            testGenerator(origin, new ParallelLineGenerator(num_threads));
+            testGenerator(origin, new ParallelSegmentGenerator(
+                num_threads, new ParallelSegmentGenerator.LineSegmentGenerator()
+            ));
+            testGenerator(origin, new ParallelSegmentGenerator(
+                num_threads,
+                new ParallelSegmentGenerator.ColumnSegmentGenerator()
+            ));
         }
     }
 
