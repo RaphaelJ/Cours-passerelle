@@ -1,3 +1,7 @@
+/**
+ * Computes the new state of a board using a set of threads which each processes
+ * a bunch of consecutive cells.
+ */
 public class ParallelSegmentGenerator implements ILifeGenerator {
     private final int _n_threads;
     private final SegmentGenerator _gen;
