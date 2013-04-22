@@ -12,10 +12,10 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
         this._gen = gen;
     }
 
-    public short[][] compute(Life origin) throws Exception
+    public byte[][] compute(Life origin) throws Exception
     {
         int size = origin.getSize();
-        short[][] res = new short[size][size];
+        byte[][] res = new byte[size][size];
         int n = size * size;
 
         // Doesn't start more threads than the number of cells.
@@ -25,7 +25,6 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
         int i_start = 0;
         Thread[] tids = new Thread[n_threads - 1];
         for (int i = 0; i < n_threads - 1; i++) {
-            int i_start_b = i_start;
             tids[i] = new Thread(new GeneratorTask(
                 this._gen, res, origin, i_start, n_per_threads
             ));
@@ -47,14 +46,14 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
     }
 
     /**
-      * Computes the new state of a subset of the board's cells.
-      */
+     * Computes the new state of a subset of the board's cells.
+     */
     public interface SegmentGenerator {
         /**
          * Computes the new state of a segment of the board of n cells starting
          * at start_i from origin in res.
          */
-        public void compute(short[][] res, Life origin, int start_i, int n);
+        public void compute(byte[][] res, Life origin, int start_i, int n);
     }
 
     /**
@@ -62,7 +61,7 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
      */
     public static class LineSegmentGenerator implements SegmentGenerator
     {
-        public void compute(short[][] res, Life origin, int start_i, int n)
+        public void compute(byte[][] res, Life origin, int start_i, int n)
         {
             int w = origin.getSize();
             int x = start_i % w
@@ -85,7 +84,7 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
      */
     public static class ColumnSegmentGenerator implements SegmentGenerator
     {
-        public void compute(short[][] res, Life origin, int start_i, int n)
+        public void compute(byte[][] res, Life origin, int start_i, int n)
         {
             int h = origin.getSize();
             int x = start_i / h
@@ -108,13 +107,13 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
       */
     private class GeneratorTask implements Runnable {
         private final SegmentGenerator _gen;
-        private final short[][] _res;
+        private final byte[][] _res;
         private final Life _origin;
         private final int _start_i;
         private final int _n;
 
         public GeneratorTask(
-            SegmentGenerator gen, short[][] res, Life origin, int start_i,
+            SegmentGenerator gen, byte[][] res, Life origin, int start_i,
             int n
         )
         {

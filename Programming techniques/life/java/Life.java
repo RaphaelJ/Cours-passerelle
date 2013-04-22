@@ -31,10 +31,10 @@ class Life {
     }
 
     private final int _size;
-    private final short[][] _board;
+    private final byte[][] _board;
     private final IndexLookupTable _index;
 
-    public Life(short[][] board)
+    public Life(byte[][] board)
     {
         this._size = board.length;
 
@@ -42,7 +42,7 @@ class Life {
         this._index = new IndexLookupTable(this._size);
     }
 
-    private Life(short[][] board, IndexLookupTable index)
+    private Life(byte[][] board, IndexLookupTable index)
     {
         this._size = board.length;
 
@@ -52,7 +52,7 @@ class Life {
 
     public Life nextState(ILifeGenerator gen) throws Exception
     {
-        short[][] res = gen.compute(this);
+        byte[][] res = gen.compute(this);
 
         return new Life(res, this._index);
     }
@@ -61,21 +61,21 @@ class Life {
      * Computes the next state of a cell. Use the coordinates lookup table
      * to avoid multiple computations of the same neighbours indexes.
      */
-    public short nextCellState(int x, int y)
+    public byte nextCellState(int x, int y)
     {
-        int x1 = this._index.prev[x],
-            x2 = this._index.next[x],
-            y1 = this._index.prev[y],
-            y2 = this._index.next[y];
+        int x1 = this._index.prev[x]
+          , x2 = this._index.next[x]
+          , y1 = this._index.prev[y]
+          , y2 = this._index.next[y];
 
-        // short[] neighbours = new short[] {
+        // byte[] neighbours = new byte[] {
         //      this._board[y1][x1], this._board[y1][x ], this._board[y1][x2],
         //      this._board[y ][x1],                      this._board[y ][x2],
         //      this._board[y2][x1], this._board[y2][x ], this._board[y2][x2]
         // };
         //
         // int n = 0;
-        // for (short neighbour : neighbours) {
+        // for (byte neighbour : neighbours) {
         //     if (neighbour)
         //         n++;
         // }
@@ -83,9 +83,10 @@ class Life {
         // Unrolling the previous loop and using an array of shorts gived me
         // 5x speedup.
 
-        int n = this._board[y1][x1] + this._board[y1][x ] + this._board[y1][x2]
-              + this._board[y ][x1] +                       this._board[y ][x2]
-              + this._board[y2][x1] + this._board[y2][x ] + this._board[y2][x2];
+        int n =
+            this._board[y1][x1] + this._board[y1][x ] + this._board[y1][x2]
+          + this._board[y ][x1] +                       this._board[y ][x2]
+          + this._board[y2][x1] + this._board[y2][x ] + this._board[y2][x2];
 
         if  (n == 3 || (n == 2 && this._board[y][x] == 1))
             return 1;
@@ -97,8 +98,8 @@ class Life {
     {
         StringBuilder str = new StringBuilder();
 
-        for (short[] line : this._board) {
-            for (short cell : line) {
+        for (byte[] line : this._board) {
+            for (byte cell : line) {
                 if (cell == 1)
                     str.append('X');
                 else
@@ -125,25 +126,56 @@ class Life {
             System.out.println("USAGE: java Life <board size> <# of threads>");
         else {
             int size        = Integer.parseInt(args[0]);
-            int num_threads = Integer.parseInt(args[1]);
+            int n_threads = Integer.parseInt(args[1]);
 
-            Life origin = new Life(randomBoard(size));
+            byte[][] board = randomBoard(size);
 
-            testGenerator(origin, new SequentialGenerator());
-            testGenerator(origin, new ParallelSegmentGenerator(
-                num_threads, new ParallelSegmentGenerator.LineSegmentGenerator()
-            ));
-            testGenerator(origin, new ParallelSegmentGenerator(
-                num_threads,
-                new ParallelSegmentGenerator.ColumnSegmentGenerator()
-            ));
-//             testGenerator(origin, new ParallelBlockGenerator(num_threads));
+            if (n_threads == 1)
+                testGenerator(
+                    "sequential generator", new Life(board),
+                    new SequentialGenerator()
+                );
+
+            if (size < 50)
+                testGenerator(
+                    "parallel cell generator", new Life(board),
+                    new ParallelCellGenerator()
+                );
+
+            testGenerator(
+                "parallel line generator", new Life(board),
+                new ParallelSegmentGenerator(
+                    n_threads,
+                    new ParallelSegmentGenerator.LineSegmentGenerator()
+                )
+            );
+            testGenerator(
+                "parallel column generator", new Life(board),
+                new ParallelSegmentGenerator(
+                    n_threads,
+                    new ParallelSegmentGenerator.ColumnSegmentGenerator()
+                )
+            );
+
+            // Only for square number of threads.
+            int n_threads_sqrt = (int) Math.sqrt(n_threads);
+            if (n_threads_sqrt * n_threads_sqrt == n_threads)
+                testGenerator(
+                    "block generator", new Life(board),
+                    new ParallelBlockGenerator(n_threads)
+                );
         }
     }
 
-    private static void testGenerator(Life origin, ILifeGenerator gen)
-        throws Exception
+    /**
+     * Executes 100 times a generator and print the average time per sample.
+     */
+    private static void testGenerator(
+        String test_name, Life origin, ILifeGenerator gen
+    ) throws Exception
     {
+        System.out.print("Testing " + test_name + " ... ");
+
         long start = Calendar.getInstance().getTimeInMillis();
 
         for (int i = 0; i < 100; i++)
@@ -151,13 +183,16 @@ class Life {
 
         long stop = Calendar.getInstance().getTimeInMillis();
         System.out.println(
-            "Execution time: " + ((double) (stop - start) / 100)
+            "Execution time: " + ((double) (stop - start) / 100) + " ms"
         );
     }
 
-    public static short[][] randomBoard(int size)
+    /**
+     * Generates a random board with 1 and 0 values.
+     */
+    public static byte[][] randomBoard(int size)
     {
-        short[][] board = new short[size][size];
+        byte[][] board = new byte[size][size];
 
         for (int y = 0; y < size; y++) {
             for (int x = 0; x < size; x++) {

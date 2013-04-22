@@ -1,0 +1,1 @@
+ghc -O2 -fllvm -threaded -rtsopts Life

@@ -1,14 +1,13 @@
 public class SequentialGenerator implements ILifeGenerator {
-    public short[][] compute(Life origin)
+    public byte[][] compute(Life origin)
     {
         int size = origin.getSize();
 
-        short[][] res = new short[size][size];
+        byte[][] res = new byte[size][size];
 
-        for (int y = 0; y < size; y++) {
+        for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
                 res[y][x] = origin.nextCellState(x, y);
-        }
 
         return res;
     }
