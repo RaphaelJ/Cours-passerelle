@@ -1,26 +1,22 @@
-/**
- * Computes the new state of a board using a set of threads which each processes
- * a bunch of consecutive cells.
- */
-public class ParallelSegmentGenerator implements ILifeGenerator {
+public class ParallelBlockGenerator implements ILifeGenerator {
     private final int _n_threads;
-    private final SegmentGenerator _gen;
 
-    public ParallelSegmentGenerator(int n_threads, SegmentGenerator gen)
+    public ParallelBlockGenerator(int n_threads)
     {
         this._n_threads = n_threads;
-        this._gen = gen;
     }
 
     public short[][] compute(Life origin) throws Exception
     {
         int size = origin.getSize();
         short[][] res = new short[size][size];
-        int n = size * size;
 
-        // Doesn't start more threads than the number of cells.
-        int n_threads = Math.min(this._n_threads, n);
-        int n_per_threads = n / n_threads;
+        if (size % this._n_threads != 0 || size % this._n_threads)
+            throw new Exception(
+                "The board size must be a multiple of the number of threads"
+            );
+
+        int thread_w = size / this._n_threads;
 
         int i_start = 0;
         Thread[] tids = new Thread[n_threads - 1];
@@ -64,7 +60,7 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
     {
         public void compute(short[][] res, Life origin, int start_i, int n)
         {
-            int w = origin.getSize();
+            int w = origin.getW();
             int x = start_i % w
               , y = start_i / w;
 
@@ -87,7 +83,7 @@ public class ParallelSegmentGenerator implements ILifeGenerator {
     {
         public void compute(short[][] res, Life origin, int start_i, int n)
         {
-            int h = origin.getSize();
+            int h = origin.getH();
             int x = start_i / h
               , y = start_i % h;
 
