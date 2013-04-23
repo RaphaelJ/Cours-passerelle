@@ -1,0 +1,510 @@
+[rapha@8cpus c]$ ./compile.sh && bash -x ./bench.sh
++ ./compile.sh
++ ./life 144
+Sequential execution time: 0.100000 ms
++ ./life 576
+Sequential execution time: 1.900000 ms
++ ./life 1008
+Sequential execution time: 9.200000 ms
++ ./life 2592
+Sequential execution time: 41.300000 ms
++ ./life 5040
+Sequential execution time: 151.500000 ms
++ ./life 10080
+Sequential execution time: 576.300000 ms
+
+[rapha@8cpus java]$ bash -x bench.sh 
++ ./compile.sh
++ java Life 144 1
+Testing sequential generator ... Execution time: 0.71 ms
+Testing parallel line generator ... Execution time: 0.65 ms
+Testing parallel column generator ... Execution time: 0.66 ms
+Testing block generator ... Execution time: 0.65 ms
++ java Life 144 2
+Testing parallel line generator ... Execution time: 1.16 ms
+Testing parallel column generator ... Execution time: 1.45 ms
++ java Life 144 3
+Testing parallel line generator ... Execution time: 1.69 ms
+Testing parallel column generator ... Execution time: 1.71 ms
++ java Life 144 4
+Testing parallel line generator ... Execution time: 2.15 ms
+Testing parallel column generator ... Execution time: 1.95 ms
+Testing block generator ... Execution time: 2.5 ms
++ java Life 144 5
+Testing parallel line generator ... Execution time: 2.49 ms
+Testing parallel column generator ... Execution time: 2.48 ms
++ java Life 144 6
+Testing parallel line generator ... Execution time: 2.99 ms
+Testing parallel column generator ... Execution time: 2.79 ms
++ java Life 576 1
+Testing sequential generator ... Execution time: 10.39 ms
+Testing parallel line generator ... Execution time: 9.12 ms
+Testing parallel column generator ... Execution time: 11.37 ms
+Testing block generator ... Execution time: 9.31 ms
++ java Life 576 2
+Testing parallel line generator ... Execution time: 9.38 ms
+Testing parallel column generator ... Execution time: 12.09 ms
++ java Life 576 3
+Testing parallel line generator ... Execution time: 8.44 ms
+Testing parallel column generator ... Execution time: 13.95 ms
++ java Life 576 4
+Testing parallel line generator ... Execution time: 7.14 ms
+Testing parallel column generator ... Execution time: 11.68 ms
+Testing block generator ... Execution time: 6.67 ms
++ java Life 576 5
+Testing parallel line generator ... Execution time: 6.34 ms
+Testing parallel column generator ... Execution time: 12.31 ms
++ java Life 576 6
+Testing parallel line generator ... Execution time: 7.62 ms
+Testing parallel column generator ... Execution time: 11.5 ms
++ java Life 1008 1
+Testing sequential generator ... Execution time: 31.62 ms
+Testing parallel line generator ... Execution time: 31.37 ms
+Testing parallel column generator ... Execution time: 40.41 ms
+Testing block generator ... Execution time: 31.12 ms
++ java Life 1008 2
+Testing parallel line generator ... Execution time: 25.08 ms
+Testing parallel column generator ... Execution time: 32.73 ms
++ java Life 1008 3
+Testing parallel line generator ... Execution time: 18.94 ms
+Testing parallel column generator ... Execution time: 32.04 ms
++ java Life 1008 4
+Testing parallel line generator ... Execution time: 14.79 ms
+Testing parallel column generator ... Execution time: 25.74 ms
+Testing block generator ... Execution time: 15.13 ms
++ java Life 1008 5
+Testing parallel line generator ... Execution time: 15.81 ms
+Testing parallel column generator ... Execution time: 23.44 ms
++ java Life 1008 6
+Testing parallel line generator ... Execution time: 15.4 ms
+Testing parallel column generator ... Execution time: 22.62 ms
++ java Life 2592 1
+Testing sequential generator ... Execution time: 180.68 ms
+Testing parallel line generator ... Execution time: 186.57 ms
+Testing parallel column generator ... Execution time: 328.47 ms
+Testing block generator ... Execution time: 195.58 ms
++ java Life 2592 2
+Testing parallel line generator ... Execution time: 115.07 ms
+Testing parallel column generator ... Execution time: 237.75 ms
++ java Life 2592 3
+Testing parallel line generator ... Execution time: 120.04 ms
+Testing parallel column generator ... Execution time: 177.29 ms
++ java Life 2592 4
+Testing parallel line generator ... Execution time: 76.8 ms
+Testing parallel column generator ... Execution time: 132.29 ms
+Testing block generator ... Execution time: 63.05 ms
++ java Life 2592 5
+Testing parallel line generator ... Execution time: 54.76 ms
+Testing parallel column generator ... Execution time: 98.23 ms
++ java Life 2592 6
+Testing parallel line generator ... Execution time: 54.59 ms
+Testing parallel column generator ... Execution time: 95.26 ms
++ java Life 5040 1
+Testing sequential generator ... Execution time: 712.48 ms
+Testing parallel line generator ... Execution time: 739.37 ms
+Testing parallel column generator ... Execution time: 2056.78 ms
+Testing block generator ... Execution time: 778.31 ms
++ java Life 5040 2
+Testing parallel line generator ... Execution time: 404.28 ms
+Testing parallel column generator ... Execution time: 985.77 ms
++ java Life 5040 3
+Testing parallel line generator ... Execution time: 324.86 ms
+Testing parallel column generator ... Execution time: 639.66 ms
++ java Life 5040 4
+Testing parallel line generator ... Execution time: 212.49 ms
+Testing parallel column generator ... Execution time: 507.97 ms
+Testing block generator ... Execution time: 230.36 ms
++ java Life 5040 5
+Testing parallel line generator ... Execution time: 164.16 ms
+Testing parallel column generator ... Execution time: 357.66 ms
++ java Life 5040 6
+Testing parallel line generator ... Execution time: 113.82 ms
+Testing parallel column generator ... Execution time: 306.32 ms
++ java Life 10080 1
+Testing sequential generator ... Execution time: 2730.86 ms
+Testing parallel line generator ... Execution time: 2843.82 ms
+Testing parallel column generator ... Execution time: 15197.71 ms
+Testing block generator ... Execution time: 2933.81 ms
++ java Life 10080 2
+Testing parallel line generator ... Execution time: 1583.46 ms
+Testing parallel column generator ... Execution time: 4951.22 ms
++ java Life 10080 3
+Testing parallel line generator ... Execution time: 766.14 ms
+Testing parallel column generator ... Execution time: 3263.05 ms
++ java Life 10080 4
+Testing parallel line generator ... Execution time: 801.33 ms
+Testing parallel column generator ... Execution time: 2486.21 ms
+Testing block generator ... Execution time: 812.55 ms
++ java Life 10080 5
+Testing parallel line generator ... Execution time: 625.52 ms
+Testing parallel column generator ... Execution time: 2168.5 ms
++ java Life 10080 6
+Testing parallel line generator ... Execution time: 421.78 ms
+Testing parallel column generator ... Execution time: 1789.63 ms
+
+.
++ ./Life +RTS -N1 -A15m
+warming up
+estimating clock resolution...
+mean is 2.033800 us (320001 iterations)
+found 62009 outliers among 319999 samples (19.4%)
+  41774 (13.1%) low severe
+  20235 (6.3%) high severe
+estimating cost of a clock call...
+mean is 170.7999 ns (16 iterations)
+
+benchmarking 144
+mean: 859.1098 us, lb 853.3155 us, ub 866.2751 us, ci 0.950
+std dev: 33.05792 us, lb 26.98352 us, ub 42.81139 us, ci 0.950
+found 8 outliers among 100 samples (8.0%)
+  5 (5.0%) high mild
+  2 (2.0%) high severe
+variance introduced by outliers: 35.555%
+variance is moderately inflated by outliers
+
+benchmarking 576
+mean: 22.01915 ms, lb 21.60194 ms, ub 22.36314 ms, ci 0.950
+std dev: 1.941822 ms, lb 1.655703 ms, ub 2.177346 ms, ci 0.950
+found 23 outliers among 100 samples (23.0%)
+  22 (22.0%) low severe
+variance introduced by outliers: 74.840%
+variance is severely inflated by outliers
+
+benchmarking 1008
+collecting 100 samples, 1 iterations each, in estimated 5.076504 s
+mean: 40.94938 ms, lb 38.65688 ms, ub 43.87519 ms, ci 0.950
+std dev: 13.13251 ms, lb 10.92127 ms, ub 15.02405 ms, ci 0.950
+found 21 outliers among 100 samples (21.0%)
+  20 (20.0%) high severe
+variance introduced by outliers: 97.854%
+variance is severely inflated by outliers
+
+benchmarking 2592
+collecting 100 samples, 1 iterations each, in estimated 22.57140 s
+mean: 226.6587 ms, lb 225.6889 ms, ub 228.1668 ms, ci 0.950
+std dev: 6.083817 ms, lb 4.040788 ms, ub 9.356587 ms, ci 0.950
+found 2 outliers among 100 samples (2.0%)
+  2 (2.0%) high severe
+variance introduced by outliers: 20.950%
+variance is moderately inflated by outliers
+
+benchmarking 5040
+collecting 100 samples, 1 iterations each, in estimated 136.3964 s
+mean: 859.2842 ms, lb 849.5993 ms, ub 877.4178 ms, ci 0.950
+std dev: 66.11009 ms, lb 40.54461 ms, ub 101.5495 ms, ci 0.950
+found 6 outliers among 100 samples (6.0%)
+  6 (6.0%) high severe
+variance introduced by outliers: 68.707%
+variance is severely inflated by outliers
+
+benchmarking 10080
+collecting 100 samples, 1 iterations each, in estimated 382.8596 s
+mean: 3.409104 s, lb 3.387735 s, ub 3.440451 s, ci 0.950
+std dev: 130.4229 ms, lb 96.84711 ms, ub 169.5819 ms, ci 0.950
+found 11 outliers among 100 samples (11.0%)
+  10 (10.0%) high severe
+variance introduced by outliers: 35.539%
+variance is moderately inflated by outliers
++ ./Life +RTS -N2 -A15m
+warming up
+estimating clock resolution...
+mean is 1.989668 us (320001 iterations)
+found 73093 outliers among 319999 samples (22.8%)
+  59255 (18.5%) low severe
+  13838 (4.3%) high severe
+estimating cost of a clock call...
+mean is 168.6430 ns (16 iterations)
+found 1 outliers among 16 samples (6.2%)
+  1 (6.2%) low mild
+
+benchmarking 144
+mean: 543.0867 us, lb 522.2275 us, ub 574.3482 us, ci 0.950
+std dev: 129.1598 us, lb 95.04844 us, ub 171.6002 us, ci 0.950
+found 11 outliers among 100 samples (11.0%)
+  4 (4.0%) high mild
+  7 (7.0%) high severe
+variance introduced by outliers: 95.745%
+variance is severely inflated by outliers
+
+benchmarking 576
+mean: 6.035195 ms, lb 6.004549 ms, ub 6.076532 ms, ci 0.950
+std dev: 180.3416 us, lb 143.9211 us, ub 253.2950 us, ci 0.950
+found 6 outliers among 100 samples (6.0%)
+  4 (4.0%) high mild
+  2 (2.0%) high severe
+variance introduced by outliers: 24.817%
+variance is moderately inflated by outliers
+
+benchmarking 1008
+mean: 17.69876 ms, lb 17.64127 ms, ub 17.76517 ms, ci 0.950
+std dev: 316.9478 us, lb 275.1666 us, ub 370.6583 us, ci 0.950
+found 1 outliers among 100 samples (1.0%)
+variance introduced by outliers: 10.410%
+variance is moderately inflated by outliers
+
+benchmarking 2592
+collecting 100 samples, 1 iterations each, in estimated 11.56962 s
+mean: 119.9433 ms, lb 116.7850 ms, ub 126.0038 ms, ci 0.950
+std dev: 21.67996 ms, lb 12.59848 ms, ub 32.27839 ms, ci 0.950
+found 12 outliers among 100 samples (12.0%)
+  4 (4.0%) high mild
+  7 (7.0%) high severe
+variance introduced by outliers: 92.586%
+variance is severely inflated by outliers
+
+benchmarking 5040
+collecting 100 samples, 1 iterations each, in estimated 44.85631 s
+mean: 431.7570 ms, lb 430.3208 ms, ub 433.9002 ms, ci 0.950
+std dev: 8.843723 ms, lb 6.329445 ms, ub 13.45749 ms, ci 0.950
+found 7 outliers among 100 samples (7.0%)
+  2 (2.0%) low mild
+  2 (2.0%) high mild
+  3 (3.0%) high severe
+variance introduced by outliers: 13.270%
+variance is moderately inflated by outliers
+
+benchmarking 10080
+collecting 100 samples, 1 iterations each, in estimated 187.1203 s
+mean: 1.739912 s, lb 1.731958 s, ub 1.756332 s, ci 0.950
+std dev: 56.17887 ms, lb 32.72572 ms, ub 105.0862 ms, ci 0.950
+found 9 outliers among 100 samples (9.0%)
+  2 (2.0%) low mild
+  2 (2.0%) high mild
+  5 (5.0%) high severe
+variance introduced by outliers: 27.740%
+variance is moderately inflated by outliers
++ ./Life +RTS -N3 -A15m
+warming up
+estimating clock resolution...
+mean is 2.080578 us (320001 iterations)
+found 65704 outliers among 319999 samples (20.5%)
+  41390 (12.9%) low severe
+  24314 (7.6%) high severe
+estimating cost of a clock call...
+mean is 167.8377 ns (15 iterations)
+
+benchmarking 144
+mean: 444.3475 us, lb 426.3008 us, ub 465.8362 us, ci 0.950
+std dev: 100.9827 us, lb 86.56032 us, ub 114.2694 us, ci 0.950
+found 21 outliers among 100 samples (21.0%)
+  19 (19.0%) high mild
+  2 (2.0%) high severe
+variance introduced by outliers: 95.721%
+variance is severely inflated by outliers
+
+benchmarking 576
+mean: 4.404379 ms, lb 4.328479 ms, ub 4.500600 ms, ci 0.950
+std dev: 438.0121 us, lb 356.1150 us, ub 524.8969 us, ci 0.950
+found 15 outliers among 100 samples (15.0%)
+  3 (3.0%) high mild
+  12 (12.0%) high severe
+variance introduced by outliers: 78.989%
+variance is severely inflated by outliers
+
+benchmarking 1008
+mean: 12.56142 ms, lb 12.44575 ms, ub 12.74894 ms, ci 0.950
+std dev: 739.7074 us, lb 488.0871 us, ub 1.053958 ms, ci 0.950
+found 7 outliers among 100 samples (7.0%)
+  3 (3.0%) high mild
+  4 (4.0%) high severe
+variance introduced by outliers: 56.484%
+variance is severely inflated by outliers
+
+benchmarking 2592
+collecting 100 samples, 1 iterations each, in estimated 14.81168 s
+mean: 82.34596 ms, lb 80.19202 ms, ub 86.23830 ms, ci 0.950
+std dev: 14.45000 ms, lb 9.128879 ms, ub 21.34748 ms, ci 0.950
+found 7 outliers among 100 samples (7.0%)
+  7 (7.0%) high severe
+variance introduced by outliers: 92.561%
+variance is severely inflated by outliers
+
+benchmarking 5040
+collecting 100 samples, 1 iterations each, in estimated 30.96361 s
+mean: 294.7487 ms, lb 294.2100 ms, ub 295.4322 ms, ci 0.950
+std dev: 3.082207 ms, lb 2.479876 ms, ub 4.641565 ms, ci 0.950
+
+benchmarking 10080
+collecting 100 samples, 1 iterations each, in estimated 119.5507 s
+mean: 1.159431 s, lb 1.157551 s, ub 1.161671 s, ci 0.950
+std dev: 10.44716 ms, lb 8.855612 ms, ub 12.49830 ms, ci 0.950
++ ./Life +RTS -N4 -A15m
+warming up
+estimating clock resolution...
+mean is 1.949878 us (320001 iterations)
+found 76643 outliers among 319999 samples (24.0%)
+  64273 (20.1%) low severe
+  12370 (3.9%) high severe
+estimating cost of a clock call...
+mean is 170.5496 ns (16 iterations)
+
+benchmarking 144
+mean: 375.5133 us, lb 368.4089 us, ub 383.1837 us, ci 0.950
+std dev: 37.83364 us, lb 32.83002 us, ub 46.71402 us, ci 0.950
+found 1 outliers among 100 samples (1.0%)
+variance introduced by outliers: 79.990%
+variance is severely inflated by outliers
+
+benchmarking 576
+mean: 3.608471 ms, lb 3.523837 ms, ub 3.709897 ms, ci 0.950
+std dev: 474.5736 us, lb 418.0446 us, ub 613.3247 us, ci 0.950
+found 1 outliers among 100 samples (1.0%)
+variance introduced by outliers: 87.300%
+variance is severely inflated by outliers
+
+benchmarking 1008
+mean: 9.685770 ms, lb 9.590465 ms, ub 9.846474 ms, ci 0.950
+std dev: 621.0602 us, lb 434.1630 us, ub 958.8105 us, ci 0.950
+found 9 outliers among 100 samples (9.0%)
+  2 (2.0%) high mild
+  7 (7.0%) high severe
+variance introduced by outliers: 60.539%
+variance is severely inflated by outliers
+
+benchmarking 2592
+collecting 100 samples, 1 iterations each, in estimated 5.957794 s
+mean: 60.15021 ms, lb 59.97282 ms, ub 60.34926 ms, ci 0.950
+std dev: 965.4062 us, lb 798.2623 us, ub 1.226016 ms, ci 0.950
+found 14 outliers among 100 samples (14.0%)
+  8 (8.0%) low mild
+  4 (4.0%) high mild
+  2 (2.0%) high severe
+variance introduced by outliers: 8.509%
+variance is slightly inflated by outliers
+
+benchmarking 5040
+collecting 100 samples, 1 iterations each, in estimated 33.89812 s
+mean: 223.8514 ms, lb 223.2736 ms, ub 224.5182 ms, ci 0.950
+std dev: 3.169787 ms, lb 2.621950 ms, ub 4.349786 ms, ci 0.950
+found 5 outliers among 100 samples (5.0%)
+  3 (3.0%) high mild
+  1 (1.0%) high severe
+variance introduced by outliers: 7.501%
+variance is slightly inflated by outliers
+
+benchmarking 10080
+collecting 100 samples, 1 iterations each, in estimated 112.9316 s
+mean: 887.3129 ms, lb 882.5627 ms, ub 903.7259 ms, ci 0.950
+std dev: 40.26903 ms, lb 13.24683 ms, ub 91.10029 ms, ci 0.950
+found 6 outliers among 100 samples (6.0%)
+  4 (4.0%) high mild
+  2 (2.0%) high severe
+variance introduced by outliers: 43.464%
+variance is moderately inflated by outliers
++ ./Life +RTS -N5 -A15m
+warming up
+estimating clock resolution...
+mean is 2.043781 us (320001 iterations)
+found 60771 outliers among 319999 samples (19.0%)
+  43769 (13.7%) low severe
+  17002 (5.3%) high severe
+estimating cost of a clock call...
+mean is 173.1483 ns (16 iterations)
+
+benchmarking 144
+mean: 372.3379 us, lb 366.3953 us, ub 380.6420 us, ci 0.950
+std dev: 35.86908 us, lb 26.24524 us, ub 50.10231 us, ci 0.950
+found 9 outliers among 100 samples (9.0%)
+  4 (4.0%) low mild
+  2 (2.0%) high mild
+  3 (3.0%) high severe
+variance introduced by outliers: 77.949%
+variance is severely inflated by outliers
+
+benchmarking 576
+mean: 4.577552 ms, lb 4.331566 ms, ub 4.802032 ms, ci 0.950
+std dev: 1.205446 ms, lb 1.081823 ms, ub 1.298478 ms, ci 0.950
+variance introduced by outliers: 96.788%
+variance is severely inflated by outliers
+
+benchmarking 1008
+mean: 12.94121 ms, lb 12.63929 ms, ub 13.28245 ms, ci 0.950
+std dev: 1.638912 ms, lb 1.393602 ms, ub 1.966695 ms, ci 0.950
+found 4 outliers among 100 samples (4.0%)
+  4 (4.0%) high mild
+variance introduced by outliers: 86.263%
+variance is severely inflated by outliers
+
+benchmarking 2592
+collecting 100 samples, 1 iterations each, in estimated 5.815387 s
+mean: 53.80668 ms, lb 51.88051 ms, ub 56.49365 ms, ci 0.950
+std dev: 11.62636 ms, lb 8.871702 ms, ub 14.84617 ms, ci 0.950
+found 23 outliers among 100 samples (23.0%)
+  23 (23.0%) high severe
+variance introduced by outliers: 94.698%
+variance is severely inflated by outliers
+
+benchmarking 5040
+collecting 100 samples, 1 iterations each, in estimated 18.14559 s
+mean: 185.3333 ms, lb 181.9411 ms, ub 192.1450 ms, ci 0.950
+std dev: 23.63872 ms, lb 13.70586 ms, ub 37.83248 ms, ci 0.950
+found 9 outliers among 100 samples (9.0%)
+  9 (9.0%) high severe
+variance introduced by outliers: 86.273%
+variance is severely inflated by outliers
+
+benchmarking 10080
+collecting 100 samples, 1 iterations each, in estimated 73.31588 s
+mean: 715.2365 ms, lb 713.5121 ms, ub 717.5337 ms, ci 0.950
+std dev: 10.15187 ms, lb 7.989836 ms, ub 13.18976 ms, ci 0.950
+found 7 outliers among 100 samples (7.0%)
+  5 (5.0%) high mild
+  2 (2.0%) high severe
+variance introduced by outliers: 7.504%
+variance is slightly inflated by outliers
++ ./Life +RTS -N6 -A15m
+warming up
+estimating clock resolution...
+mean is 2.787784 us (320001 iterations)
+found 3386 outliers among 319999 samples (1.1%)
+  1915 (0.6%) high severe
+estimating cost of a clock call...
+mean is 166.2031 ns (23 iterations)
+
+benchmarking 144
+mean: 386.4770 us, lb 379.8379 us, ub 393.6220 us, ci 0.950
+std dev: 35.16662 us, lb 30.46213 us, ub 42.98967 us, ci 0.950
+found 12 outliers among 100 samples (12.0%)
+  5 (5.0%) low mild
+  6 (6.0%) high mild
+  1 (1.0%) high severe
+variance introduced by outliers: 75.881%
+variance is severely inflated by outliers
+
+benchmarking 576
+mean: 5.236881 ms, lb 5.116552 ms, ub 5.373574 ms, ci 0.950
+std dev: 653.9984 us, lb 570.2628 us, ub 839.1297 us, ci 0.950
+found 1 outliers among 100 samples (1.0%)
+variance introduced by outliers: 86.242%
+variance is severely inflated by outliers
+
+benchmarking 1008
+mean: 12.03064 ms, lb 11.79758 ms, ub 12.28436 ms, ci 0.950
+std dev: 1.247884 ms, lb 1.099761 ms, ub 1.483941 ms, ci 0.950
+variance introduced by outliers: 80.047%
+variance is severely inflated by outliers
+
+benchmarking 2592
+collecting 100 samples, 1 iterations each, in estimated 8.034301 s
+mean: 46.45550 ms, lb 44.78735 ms, ub 48.62058 ms, ci 0.950
+std dev: 9.670444 ms, lb 7.873429 ms, ub 11.76027 ms, ci 0.950
+found 12 outliers among 100 samples (12.0%)
+  9 (9.0%) high mild
+  3 (3.0%) high severe
+variance introduced by outliers: 94.675%
+variance is severely inflated by outliers
+
+benchmarking 5040
+collecting 100 samples, 1 iterations each, in estimated 16.62228 s
+mean: 157.9315 ms, lb 154.3526 ms, ub 165.0233 ms, ci 0.950
+std dev: 25.02415 ms, lb 14.45114 ms, ub 39.54739 ms, ci 0.950
+found 13 outliers among 100 samples (13.0%)
+  5 (5.0%) high mild
+  8 (8.0%) high severe
+variance introduced by outliers: 90.485%
+variance is severely inflated by outliers
+
+benchmarking 10080
+collecting 100 samples, 1 iterations each, in estimated 102.0850 s
+mean: 600.3589 ms, lb 599.4621 ms, ub 601.4359 ms, ci 0.950
+std dev: 5.005066 ms, lb 4.063171 ms, ub 6.325390 ms, ci 0.950
