@@ -68,19 +68,19 @@ class Life {
           , y1 = this._index.prev[y]
           , y2 = this._index.next[y];
 
-        // byte[] neighbours = new byte[] {
+        // boolean[] neighbours = new boolean[] {
         //      this._board[y1][x1], this._board[y1][x ], this._board[y1][x2],
         //      this._board[y ][x1],                      this._board[y ][x2],
         //      this._board[y2][x1], this._board[y2][x ], this._board[y2][x2]
         // };
         //
         // int n = 0;
-        // for (byte neighbour : neighbours) {
+        // for (boolean neighbour : neighbours) {
         //     if (neighbour)
         //         n++;
         // }
 
-        // Unrolling the previous loop and using an array of shorts gived me
+        // Unrolling the previous loop and using an array of bytes gived me
         // 5x speedup.
 
         int n =

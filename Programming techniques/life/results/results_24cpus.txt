@@ -80,6 +80,7 @@ Testing parallel column generator ... Execution time: 13.12 ms
 + java Life 144 24
 Testing parallel line generator ... Execution time: 13.44 ms
 Testing parallel column generator ... Execution time: 13.41 ms
+
 + java Life 576 7
 Testing parallel line generator ... Execution time: 7.55 ms
 Testing parallel column generator ... Execution time: 11.67 ms
@@ -136,6 +137,7 @@ Testing parallel column generator ... Execution time: 20.85 ms
 + java Life 576 24
 Testing parallel line generator ... Execution time: 18.26 ms
 Testing parallel column generator ... Execution time: 21.36 ms
+
 + java Life 1008 7
 Testing parallel line generator ... Execution time: 13.6 ms
 Testing parallel column generator ... Execution time: 23.48 ms
@@ -192,6 +194,7 @@ Testing parallel column generator ... Execution time: 28.37 ms
 + java Life 1008 24
 Testing parallel line generator ... Execution time: 24.33 ms
 Testing parallel column generator ... Execution time: 29.31 ms
+
 + java Life 2592 6
 Testing parallel line generator ... Execution time: 67.13 ms
 Testing parallel column generator ... Execution time: 97.07 ms

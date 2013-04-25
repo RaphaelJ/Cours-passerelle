@@ -1,0 +1,104 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[babel=true]{csquotes}
+\usepackage{graphicx}
+\usepackage{fullpage}
+
+\pagestyle{headings}
+
+\title{Programming techniques : Project 3}
+\author{Raphaël Javaux}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+   \subsection{Sequential optimisations}
+
+    \paragraph{}Before working on parallel versions of the algorithm, I tried to
+optimise the algorithm itself. I managed to septuple the speed of the original
+algorithm.
+
+   \subsubsection{Neighbourhood coordinates lookup tables}
+
+    \paragraph{}To avoid to compute the neighbours coordinates in the
+\textit{toroidal square world} at each iteration, I used two lookup tables to
+precompute the coordinates of, respectively, the previous column/row and the
+next column/row for each column/row. This gave a \textbf{1.4x} speedup to the
+algorithm by removing four conditional expressions.
+
+   \subsubsection{Board of bytes instead of booleans}
+
+   \paragraph{}By storing the game's board state in an array of \textit{bytes},
+with cells labelled with \textit{1} for \textit{alive} and \textit{0} for
+\textit{dead}, I was able to replace the inspection of cell status by an eight
+terms addition, removing as many conditional expressions. This gave me an
+additional \textbf{5x} speedup.
+
+  \subsection{Programming languages}
+
+    \paragraph{}In addition to the required Java tests, I written my
+\textbf{sequential} generation algorithm in two additional programming
+languages :
+    \begin{itemize}
+        \item In \textit{C} because of its very competitive compilers (GCC 4.8
+was used) and the similar syntax to Java which enabled me to almost copy-paste
+the algorithm ;
+        \item In \textit{Haskell} because this functional language provides
+automatic and deterministic array parallelisation (parallelisation of a function
+is a compile time option and is guaranteed by the compiler to give the same
+result as the sequential execution).
+    \end{itemize}
+Both versions implements exactly the same algorithm as the Java sequential one,
+except that the Haskell's is able to execute itself in parallel automatically.
+
+  \section{Results}
+
+    \paragraph{}These results have been collected on a dual Intel 2Ghz
+haxa-cores hyper-threaded machine, giving 24 logical cores for 12 physical 
+cores. Each test sample is the mean of an hundred repeated executions.
+
+    \paragraph{}Figure \ref{fig:10080_throughput} shows the number of cells
+which can be generated in a second by each method given an certain amount of
+threading on a large board. Notice that the block segmentation is only able to
+use square numbers of threads and that the board size must be a multiple of 144
+(the LCM of 1, 4, 9 and 16). \newline
+The sequential C algorithm is awfully fast, probably because of the compiler
+which is smart enough to use vectorial instructions while others aren't.\newline
+The linear segmentation is the most effective parallel strategy (it's also the
+one used by Haskell internally). The column segmentation is deadly ineffective
+because of being cache unfriendly. Haskell scales in an almost perfect speedup
+until reaching the number of physical cores, which makes me hint that the
+benchmark is not bounded by the memory bandwidth, even on this 24-cores machine.
+
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.7\linewidth]{results/10080_throughput.png}
+        \caption{
+            Cell generation rate on a 10,080 x 10,080 board
+            \label{fig:10080_throughput}
+        }
+    \end{figure}
+
+    \paragraph{}Figure \ref{fig:board_size_impact} shows the impact of different
+board sizes on the cell throughput, given the most efficient configuration of
+the  number of thread for each method for each size. \newline
+Java implementations doesn't benefit from multi-cores for the smallest boards,
+whereas the Haskell implementation is able to get a $2.3$ speedup using 4 cores.
+Parallel implementations shine as well as the number of cells in the board
+increase. The sequential C implementation almost loose half its speed when the 
+size of the board exceeds the CPU cache.
+
+
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width=0.7\linewidth]{results/board_size_impact.png}
+        \caption{
+            Maximum cell generation rate on different board sizes
+            \label{fig:board_size_impact}
+        }
+    \end{figure}
+  
+\end{document}
