@@ -4,6 +4,10 @@ import java.util.Calendar;
 /**
  * Represents a state of the GoL board.
  * Provides a method to compute the next state of a cell.
+ * This type is a purely functional data structure. That is, no method change
+ * the state of the object, must return a new object instead.
+ * This is great as we don't need any sort of lock when accessing the board as 
+ * it can't change.
  */
 class Life {
     /**
@@ -50,6 +54,9 @@ class Life {
         this._index = index;
     }
 
+    /**
+     * Computes the next state of the board. Returns the new board as a result.
+     */
     public Life nextState(ILifeGenerator gen) throws Exception
     {
         byte[][] res = gen.compute(this);

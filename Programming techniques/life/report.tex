@@ -48,7 +48,7 @@ automatic and deterministic array parallelisation (parallelisation of a function
 is a compile time option and is guaranteed by the compiler to give the same
 result as the sequential execution).
     \end{itemize}
-Both versions implements exactly the same algorithm as the Java sequential one,
+Both versions implement exactly the same algorithm as the Java sequential one,
 except that the Haskell's is able to execute itself in parallel automatically.
 
   \section{Results}
@@ -56,15 +56,15 @@ except that the Haskell's is able to execute itself in parallel automatically.
     \paragraph{}These results have been collected on a dual Intel 2Ghz
 haxa-cores hyper-threaded machine, giving 24 logical cores for 12 physical
 cores. Each of the following results is obtained by  computing the mean
-execution time of an hundred repeated executions. As the naive strategy (spawn
-a new thread for each cell) wasn't able to scale up to a board of more than
-a thousand cells, it was removed from my tests.
+execution time of an hundred repeated executions. \textit{As the naive strategy
+(spawn a new thread for each cell) wasn't able to scale up to a board of more
+than a thousand cells, it was removed from my tests}.
 
-    \paragraph{}Figure \ref{fig:10080_throughput} shows the number of cells
-which can be generated per second by each method given a certain amount of
-threading on a large board. Notice that the block segmentation is only able to
-use square numbers of threads and that the board size must also be a multiple of
-144 (the LCM of 1, 4, 9 and 16). \newline
+    \paragraph{}Figure \ref{fig:10080_throughput} shows the \textit{number of
+cells which can be generated per second} by each method given a certain amount
+of threading on a large board. Notice that the block segmentation is only able
+to use square numbers of threads and that the board size must also be a multiple
+of 144 (the \textit{least common multiple} of 1, 4, 9 and 16). \newline
 The sequential C algorithm is awfully fast, probably because the C compiler is
 smart enough to use vectorial instructions while others aren't.\newline
 The linear segmentation is the most effective parallel strategy (it's also the
@@ -75,7 +75,7 @@ benchmark is not bounded by the memory bandwidth, even on this 24-cores machine.
 
     \begin{figure}[h]
         \centering
-        \includegraphics[width=0.7\linewidth]{results/10080_throughput.png}
+        \includegraphics[width=0.75\linewidth]{results/10080_throughput.png}
         \caption{
             Cell generation rate on a 10,080 x 10,080 board
             \label{fig:10080_throughput}
@@ -85,16 +85,20 @@ benchmark is not bounded by the memory bandwidth, even on this 24-cores machine.
     \paragraph{}Figure \ref{fig:board_size_impact} shows the impact of different
 board sizes on the cell throughput, given the most efficient number of threads
 for each method for each size. \newline
-The performance index is calculated for each method by comparing the best
-performance obtained to the speed of the sequential Java implementation.
+The \textit{performance index} is calculated for each method by comparing the
+best performance obtained to the speed of the sequential Java implementation.
+The \textit{parallel speedup} is the maximum speedup obtained with the method
+when compared to a mono-thread execution.
 Parallel implementations shine as well as the number of cells in the board
 increase. The sequential C implementation almost loose half its speed when the
 size of the board exceeds the CPU cache whereas the sequential Java
-implementation has stable, but poor, performances.
+implementation has stable, but poor, performances. Haskell is able to benefit
+from parallelism even on very small boards and quickly takes the lead over the 
+sequential C algorithm on larger boards.
 
     \begin{figure}[h]
         \centering
-        \includegraphics[width=0.7\linewidth]{results/board_size_impact.png}
+        \includegraphics[width=0.75\linewidth]{results/board_size_impact.png}
 
         \begin{tabular}{  ll | l  l  l  l  l  l }
             & & 144 & 576 & 1008 & 2592 & 5040 & 10080 \\ \hline
