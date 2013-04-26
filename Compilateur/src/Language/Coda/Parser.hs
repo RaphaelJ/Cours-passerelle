@@ -1,18 +1,28 @@
 -- | Définit un parser Parsec capable de gérérer un 'AST' à partir d'un flux de
 -- caractères (Lazy Text).
-module Language.Coda.Parser (CodaParser, parser) where
+module Language.Coda.Parser (CodaParser, parser, parse) where
 
 import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), pure)
+import Control.Monad (when)
+import qualified Data.Map as M
+import Text.Printf (printf)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import Text.Parsec (
-      (<?>), alphaNum, between, char, digit, eof, letter, many, many1
-    , optionMaybe, sepBy, space, spaces, string, try
+      SourceName, ParseError, (<?>), alphaNum, between, char, digit, eof
+    , getState, letter, many, many1, modifyState, optionMaybe, runParser, sepBy
+    , space, spaces, string, try
     )
-import Text.Parsec.Text.Lazy (Parser)
+import Text.Parsec.Text.Lazy (GenParser)
 
 import Language.Coda.AST
 
-type CodaParser = Parser
+-- | Contient l'état du parseur et du vérificateur sémantique.
+data ParserState = ParserState {
+      psVars :: M.Map CIdent CVar, psFuns :: M.Map CIdent CFun
+    }
+
+type CodaParser = GenParser ParserState
 
 parser :: CodaParser AST
 parser =
@@ -21,14 +31,64 @@ parser =
     declaration =     try (CTopLevelVar <$> variableDecl)
                   <|> try (CTopLevelFun <$> functionDecl)
 
+-- | Exécute le parseur sur un flux de texte.
+parse :: SourceName -> TL.Text -> Either ParseError AST
+parse = let emptyState = ParserState M.empty M.empty
+        in runParser parser emptyState
+
 -- Déclarations ----------------------------------------------------------------
 
 variableDecl :: CodaParser CVar
-variableDecl =
-    CVar <$> typeArraySpec <* spaces1
-         <*> identifier <* spaces
-         <*> optionMaybe (char '=' *> spaces *> expr)
-         <*  tailingSep
+variableDecl = do
+    qual  <- typeQual <* spaces1
+
+    mType <-     try (Just <$> typeArraySpec)
+             <|> (string "auto" >> return Nothing)
+    spaces1
+
+    ident <- identifier <* spaces
+    checkIdentifer ident
+
+    mExpr <- optionMaybe (char '=' *> spaces *> expr)
+
+    var <- getVar qual mType ident mExpr
+    registerVar var
+
+    tailingSep
+    return var
+  where
+    -- Vérifie que la variable n'a pas déjà été déclarée.
+    checkIdentifer ident = do
+        varsSt <- psVars <$> getState
+        when (ident `M.member` varsSt) $
+            fail $ printf "Variable identifer `%s` is already defined."
+                          (T.unpack ident)
+
+    -- Retourne la définition de la variable, en vérifiant que celle-ci est
+    -- correctement définie et initialisée.
+    -- Variables non initialisées
+    getVar CQualConst _                           _     Nothing           =
+        fail "A constant must be assigned."
+    getVar CQualFree  (Just t)                    ident Nothing           =
+        return $ CVar CQualFree t ident Nothing
+    -- Variables initialisées
+    getVar _          (Just (CTypeArray _ (_:_))) _     (Just _)          =
+        fail "Arrays can't be assigned."
+    getVar qual       (Just t)                    ident (Just (e, tExpr))
+        | t == tExpr = return $ CVar qual t ident (Just e)
+        | otherwise  =
+            fail $ printf "Trying to assign an expression of type `%s` to a \
+                          \variable of type `%s`." (show tExpr) (show t)
+    -- Variables au typage inféré
+    getVar qual       Nothing                     ident Nothing           =
+        fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
+    getVar qual       Nothing                     ident (Just (e, tExpr)) =
+        return $ CVar qual (CTypeArray tExpr []) ident (Just e)
+
+    -- Enregistre la variable dans la table des symboles.
+    registerVar var@(CVar _ _ ident _) =
+        modifyState $ \state ->
+            state { psVars = M.insert ident var (psVars state) }
 
 functionDecl :: CodaParser CFun
 functionDecl =
@@ -47,7 +107,7 @@ functionDecl =
                     <*> optionMaybe (try $ spaces1 *> identifier)
 
 typeQual :: CodaParser CQual
-typeQual =     try (string "const" >> spaces1 >> return CQualConst)
+typeQual =     try (string "const" >> return CQualConst)
            <|> return CQualFree
 
 typeSpec :: CodaParser CType
@@ -56,7 +116,7 @@ typeSpec =     try (string "int"  >> return CInt)
 
 typeArraySpec :: CodaParser CTypeArray
 typeArraySpec =
-    CTypeArray <$> typeQual <*> typeSpec <*> subscripts
+    CTypeArray <$> typeSpec <*> subscripts
   where
     subscripts = many $ try $ spaces >> subscript integerLitteral
 
@@ -68,8 +128,8 @@ compoundStmt = between (char '{' >> spaces) (char '}') (many (stmt <* spaces))
 stmt :: CodaParser CStmt
 stmt =     try (CDecl   <$> variableDecl)
        <|> try (CAssign <$> varExpr <* spaces <* char '=' <* spaces
-                        <*> expr           <* tailingSep)
-       <|> try (CExpr   <$> expr           <* tailingSep)
+                        <*> expr <* tailingSep)
+       <|> try (CExpr   <$> expr <* tailingSep)
        <|> try (CIf     <$> (string "if" *> spaces *> guard) <*  spaces
                         <*> compoundStmt
                         <*> optionMaybe (try $    spaces *> string "else"
@@ -86,21 +146,22 @@ stmt =     try (CDecl   <$> variableDecl)
 -- littérale ou un identifieur.
 
 expr, andExpr, comparisonExpr, numericExpr, multiplicativeExpr, valueExpr
-    :: CodaParser CExpr
-expr = binaryExpr [string "||" >> return COr] andExpr
+    :: CodaParser (CExpr, CType)
+expr = binaryExpr CBool CBool [string "||" >> return COr] andExpr
 
-andExpr = binaryExpr [string "&&" >> return CAnd] comparisonExpr
+andExpr = binaryExpr CBool CBool [string "&&" >> return CAnd] comparisonExpr
 
-comparisonExpr = binaryExpr [
+comparisonExpr = binaryExpr CInt CBool [
       string "==" >> return CEq  , string "!=" >> return CNEq
     , char   '<'  >> return CLt  , char   '>'  >> return CGt
     , string "<=" >> return CLtEq, string ">=" >> return CGtEq
     ] numericExpr
 
-numericExpr = binaryExpr [char '+' >> return CAdd, char '-' >> return CSub]
-                         multiplicativeExpr
+numericExpr = binaryExpr CInt CInt [
+      char '+' >> return CAdd, char '-' >> return CSub
+    ] multiplicativeExpr
 
-multiplicativeExpr = binaryExpr [
+multiplicativeExpr = binaryExpr CInt CInt [
       char '*' >> return CMult, char '/' >> return CDiv, char '%' >> return CMod
     ] valueExpr
 
@@ -114,9 +175,23 @@ valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
 
 varExpr :: CodaParser CVarExpr
 varExpr =
-    CVarExpr <$> identifier <*> subscripts
+    var <- identifer >>= getVar
+    subs <- many $ subscript expr
+    CVarExpr <$> var <*> subs
   where
-    subscripts = many $ subscript expr
+    -- Recherche dans la table des symboles la référence à la variable.
+    getVar ident = do
+        varsSt <- psVars <$> getState
+        case ident `M.lookup` varsSt of
+            Just var -> return var
+            Nothing  ->
+                fail $ printf "Unknown identifer : `%s`." (T.unpack ident)
+
+    getSubs (CVar _ (CTypeArray _ dims) _ _) = do
+        subs <- many $ subscript subs
+        goSub (subs
+
+    goSub (x:xs) (y:ys)
 
 litteral :: CodaParser CLitteral
 litteral =     (CLitteralInt  <$> integerLitteral)

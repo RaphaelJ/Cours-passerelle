@@ -1,10 +1,9 @@
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
-import Text.Parsec (parse)
 
-import Language.Coda.Parser (parser)
+import Language.Coda.Parser (parse)
 
 main :: IO ()
 main = do
-    TL.interact (TL.pack . show . parse parser "stdin")
+    TL.interact (TL.pack . show . parse "stdin")
     putStrLn ""

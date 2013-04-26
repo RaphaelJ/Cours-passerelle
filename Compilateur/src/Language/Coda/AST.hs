@@ -23,7 +23,7 @@ type CIdent = Text
 
 -- Types, variables et fonctions -----------------------------------------------
 
-data CVar = CVar CTypeArray CIdent (Maybe CExpr)
+data CVar = CVar CQual CTypeArray CIdent (Maybe CExpr)
     deriving (Show, Eq)
 
 data CFun = CFun (Maybe CType) CIdent [CArgument] (Maybe CCompoundStmt)
@@ -34,14 +34,14 @@ data CType = CInt | CBool deriving (Show, Eq)
 
 -- | Permet de définir un type de variable ou de tableau, associé à un
 -- qualificateur.
-data CTypeArray = CTypeArray CQual CType [CInt]
+data CTypeArray = CTypeArray CType (Maybe CDimList)
     deriving (Show, Eq)
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
 
 -- | Contient la déclaration d\'un argument. Le booléen indique si la dernière
 -- dimension du type, dans le cas d\'un tableau, est implicite.
-data CArgument = CArgument CTypeArray Bool (Maybe CIdent)
+data CArgument = CArgument CQual CTypeArray (Maybe CIdent)
     deriving (Show, Eq)
 
 -- Instructions et expressions -------------------------------------------------
@@ -66,7 +66,7 @@ data CBinOp = CAnd | COr
             | CAdd | CSub | CMult | CDiv | CMod
     deriving (Show, Eq)
 
-data CVarExpr = CVarExpr CIdent [CExpr]
+data CVarExpr = CVarExpr CVar [CExpr]
     deriving (Show, Eq)
 
 type CBool = Bool

@@ -5,14 +5,15 @@
  * de 1988.
  * Les caractères d'espacement entre les tokens sont implicites dans la
  * définition de cette grammaire.
- * 
- * Février 2013, Raphael Javaux (s114483, année préparatoire)
+ *
+ * Février, avril 2013, Raphael Javaux (s114483, année préparatoire)
  *)
 
 program = { variable-decl | function-def }
 
 (* Définit la déclaration et l'initialisation d'une variable. *)
-variable-decl = type-qual, type-array-spec, identifier, [ '=', expr ], ';'
+variable-decl = (type-qual, type-array-spec, identifier , [ '=', expr ], ';')
+              | (type-qual, "auto"         , identifier , '=', expr    , ';')
 
 (* Définit la déclaration et/ou la définition d'une fonction.
  * Ne permet pas de retourner un tableau. *)

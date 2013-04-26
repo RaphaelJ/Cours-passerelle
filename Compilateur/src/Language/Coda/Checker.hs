@@ -79,16 +79,25 @@ check = undefined
 --     typeArg t False = GTypeArg              (arrayType t)
 --     typeArg t True  = GTypeArgArrayImplicit (arrayType t)
 
-arrayType :: CTypeArray -> GTypeArray q a r
+data GTypeDyn where
+    GTypeDyn :: GType a -> GTypeDyn
+
+data GTypeArrayDyn where
+    GTypeArrayDyn :: GTypeArray q a r -> GTypeArrayDyn
+
+arrayType :: CTypeArray -> GTypeArrayDyn
 arrayType (CTypeArray qual t dims) =
-    foldl' GTypeArray prim $ reverse dims
+    foldl' step prim $ reverse dims
   where
-    t' = primType t
+    step (GTypeArrayDyn nested) dim =
+        GTypeArrayDyn $ GTypeArray nested dim
 
-    prim = GTypeArrayPrim $ case qual of
-        CQualFree  -> GQualFree  t'
-        CQualConst -> GQualConst t'
+--     GTypeDyn t' = 
 
-primType :: CType -> GType a
-primType CInt  = GInt
-primType CBool = GBool
+    prim = case qual of
+        CQualFree  -> GTypeArrayDyn $ GTypeArrayPrim $ GQualFree $ case primType t of GTypeDyn t' -> t'
+        CQualConst -> GTypeArrayDyn $ GTypeArrayPrim $ GQualConst $ case primType t of GTypeDyn t' -> t'
+
+primType :: CType -> GTypeDyn
+primType CInt  = GTypeDyn GInt
+primType CBool = GTypeDyn GBool
