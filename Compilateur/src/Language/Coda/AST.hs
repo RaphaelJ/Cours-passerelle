@@ -21,27 +21,31 @@ data CTopLevel = CTopLevelVar CVar | CTopLevelFun CFun
 
 type CIdent = Text
 
--- Types, variables et fonctions -----------------------------------------------
+-- Variables et fonctions ------------------------------------------------------
 
-data CVar = CVar CQual CTypeArray CIdent (Maybe CExpr)
+data CVar = CVar CQual CTypeArray CIdent
+    deriving (Show, Eq)
+
+data CVarDecl = CVarDecl CVar (Maybe CExpr)
     deriving (Show, Eq)
 
 data CFun = CFun (Maybe CType) CIdent [CArgument] (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
--- | Types primitifs.
+-- Types -----------------------------------------------------------------------
+
 data CType = CInt | CBool deriving (Show, Eq)
 
--- | Permet de définir un type de variable ou de tableau, associé à un
--- qualificateur.
-data CTypeArray = CTypeArray CType (Maybe CDimList)
+-- | Permet de définir un type de variable ou d\'un tableau.
+-- Si la variable est un tableau, contient le nombre de dimensions ainsi que les
+-- tailles d\'au moins les n-1 premières dimensions du tableau.
+data CTypeArray = CTypeArray CType (Maybe (Int, [Int]))
     deriving (Show, Eq)
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
 
--- | Contient la déclaration d\'un argument. Le booléen indique si la dernière
--- dimension du type, dans le cas d\'un tableau, est implicite.
-data CArgument = CArgument CQual CTypeArray (Maybe CIdent)
+-- | Encode les arguments avec une variable associée ou non.
+data CArgument = CVarArgument CVar | CAnonArgument CQual CTypeArray
     deriving (Show, Eq)
 
 -- Instructions et expressions -------------------------------------------------

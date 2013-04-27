@@ -38,24 +38,24 @@ parse = let emptyState = ParserState M.empty M.empty
 
 -- Déclarations ----------------------------------------------------------------
 
-variableDecl :: CodaParser CVar
+variableDecl :: CodaParser CVarDecl
 variableDecl = do
-    qual  <- typeQual <* spaces1
+    qual                  <- typeQual <* spaces1
 
-    mType <-     try (Just <$> typeArraySpec)
-             <|> (string "auto" >> return Nothing)
+    mType                 <-     try (Just <$> typeArraySpec)
+                             <|> (string "auto" >> return Nothing)
     spaces1
 
-    ident <- identifier <* spaces
+    ident                 <- identifier <* spaces
     checkIdentifer ident
 
-    mExpr <- optionMaybe (char '=' *> spaces *> expr)
+    mExpr                 <- optionMaybe (char '=' *> spaces *> expr)
 
-    var <- getVar qual mType ident mExpr
+    decl@(CVarDecl var _) <- getVar qual mType ident mExpr
     registerVar var
 
     tailingSep
-    return var
+    return decl
   where
     -- Vérifie que la variable n'a pas déjà été déclarée.
     checkIdentifer ident = do
@@ -66,29 +66,25 @@ variableDecl = do
 
     -- Retourne la définition de la variable, en vérifiant que celle-ci est
     -- correctement définie et initialisée.
+
     -- Variables non initialisées
-    getVar CQualConst _                           _     Nothing           =
+    getVar CQualConst _                              _     Nothing           =
         fail "A constant must be assigned."
-    getVar CQualFree  (Just t)                    ident Nothing           =
-        return $ CVar CQualFree t ident Nothing
+    getVar CQualFree  (Just t)                       ident Nothing           =
+        return $ CVarDecl (CVar CQualFree t ident) Nothing
     -- Variables initialisées
-    getVar _          (Just (CTypeArray _ (_:_))) _     (Just _)          =
+    getVar _          (Just (CTypeArray _ (Just _))) _     (Just _)          =
         fail "Arrays can't be assigned."
-    getVar qual       (Just t)                    ident (Just (e, tExpr))
-        | t == tExpr = return $ CVar qual t ident (Just e)
+    getVar qual       (Just t)                       ident (Just (e, tExpr))
+        | t == tExpr = return $ CVarDecl (CVar qual t ident) (Just e)
         | otherwise  =
             fail $ printf "Trying to assign an expression of type `%s` to a \
                           \variable of type `%s`." (show tExpr) (show t)
     -- Variables au typage inféré
-    getVar qual       Nothing                     ident Nothing           =
+    getVar qual       Nothing                        ident Nothing           =
         fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
-    getVar qual       Nothing                     ident (Just (e, tExpr)) =
-        return $ CVar qual (CTypeArray tExpr []) ident (Just e)
-
-    -- Enregistre la variable dans la table des symboles.
-    registerVar var@(CVar _ _ ident _) =
-        modifyState $ \state ->
-            state { psVars = M.insert ident var (psVars state) }
+    getVar qual       Nothing                        ident (Just (e, tExpr)) =
+        return $ CVarDecl (CVar qual (CTypeArray tExpr Nothing) ident) (Just e)
 
 functionDecl :: CodaParser CFun
 functionDecl =
@@ -101,10 +97,41 @@ functionDecl =
     args = between (char '(' >> spaces) (spaces >> char ')')
                    (arg `sepBy` (spaces >> char ',' >> spaces))
 
-    arg = CArgument <$> typeArraySpec
-                    <*> (    (try $ subscript spaces >> return True)
-                         <|> return False)
-                    <*> optionMaybe (try $ spaces1 *> identifier)
+    arg = do
+        qual    <- typeQual
+        t       <- argType
+
+        mIdent  <- optionMaybe (try $ spaces1 *> identifier)
+        case mIdent of
+            Just ident -> do
+                let var = CVar
+                in 
+            Nothing    ->
+        getArg qual t  mIdent
+        CArgument <$> typeArraySpec
+                    <*> 
+                    <*> 
+
+    argType = do
+        t@(CTypeArray prim mDims) <- typeArraySpec
+        -- Parse une éventuelle dimension implicite supplémentaire.
+            (try $ subscript spaces >>
+                   case mDims of
+                        Just (nDims, dims) -> 
+                            CTypeArray prim (Just (nDims + 1, dims))
+                        Nothing            ->
+                            CTypeArray prim (Just (1, []))
+            )
+        <|> return t
+
+    getArg qual t True (Just ident) =
+        let var = CVar qual 
+        CVarArgument 
+    get
+
+    
+
+-- Types -----------------------------------------------------------------------
 
 typeQual :: CodaParser CQual
 typeQual =     try (string "const" >> return CQualConst)
@@ -174,10 +201,9 @@ valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
                        (expr `sepBy` (spaces >> char ',' >> spaces))
 
 varExpr :: CodaParser CVarExpr
-varExpr =
+varExpr = do
     var <- identifer >>= getVar
-    subs <- many $ subscript expr
-    CVarExpr <$> var <*> subs
+    CVarExpr var <$> getSubs var
   where
     -- Recherche dans la table des symboles la référence à la variable.
     getVar ident = do
@@ -187,11 +213,22 @@ varExpr =
             Nothing  ->
                 fail $ printf "Unknown identifer : `%s`." (T.unpack ident)
 
-    getSubs (CVar _ (CTypeArray _ dims) _ _) = do
+    getSubs (CVar _ (CTypeArray _ dims) _) = do
         subs <- many $ subscript subs
-        goSub (subs
+        case (dims, subs) of
+            -- Variable scalaire
+            (Nothing, []   ) -> return []
+            (Nothing, (_:_)) ->
+                fail $ printf "Trying to subscript `%s` which is a scalar."
+                              (T.unpack ident)
+            -- Tableau
+            (Just ds, ss   ) -> 
+                let nDims = length ds + 1
+                    goSub ds ss
 
-    goSub (x:xs) (y:ys)
+    goSub [] [(s, tExpr)] = [s]
+    goSub [] [] = fail
+    
 
 litteral :: CodaParser CLitteral
 litteral =     (CLitteralInt  <$> integerLitteral)
@@ -246,3 +283,9 @@ subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner
 -- | Parse 1 à N caractères d'espacement.
 spaces1 :: CodaParser ()
 spaces1 = space >> spaces
+
+-- | Enregistre la variable dans la table des symboles.
+registerVar :: CVar -> CodaParser ()
+registerVar var@(CVar _ _ ident _) =
+    modifyState $ \state ->
+        state { psVars = M.insert ident var (psVars state) }
