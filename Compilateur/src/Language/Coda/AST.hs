@@ -16,7 +16,7 @@ import Data.Text (Text)
 
 type AST = [CTopLevel]
 
-data CTopLevel = CTopLevelVar CVar | CTopLevelFun CFun
+data CTopLevel = CTopLevelVar CVarDecl | CTopLevelFun CFun
     deriving (Show, Eq)
 
 type CIdent = Text
@@ -52,7 +52,7 @@ data CArgument = CVarArgument CVar | CAnonArgument CQual CTypeArray
 
 type CCompoundStmt = [CStmt]
 
-data CStmt = CDecl CVar
+data CStmt = CDecl CVarDecl
            | CAssign CVarExpr CExpr
            | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)

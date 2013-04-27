@@ -104,32 +104,22 @@ functionDecl =
         mIdent  <- optionMaybe (try $ spaces1 *> identifier)
         case mIdent of
             Just ident -> do
-                let var = CVar
-                in 
-            Nothing    ->
-        getArg qual t  mIdent
-        CArgument <$> typeArraySpec
-                    <*> 
-                    <*> 
+                let var = CVar qual t ident
+                registerVar var
+                return $ CVarArgument var
+            Nothing    -> return $ CAnonArgument qual t
 
     argType = do
         t@(CTypeArray prim mDims) <- typeArraySpec
         -- Parse une éventuelle dimension implicite supplémentaire.
-            (try $ subscript spaces >>
-                   case mDims of
+        (    (try $ subscript spaces >>
+                    case mDims of
                         Just (nDims, dims) -> 
-                            CTypeArray prim (Just (nDims + 1, dims))
+                            return $ CTypeArray prim (Just (nDims + 1, dims))
                         Nothing            ->
-                            CTypeArray prim (Just (1, []))
-            )
-        <|> return t
-
-    getArg qual t True (Just ident) =
-        let var = CVar qual 
-        CVarArgument 
-    get
-
-    
+                            return $ CTypeArray prim (Just (1, []))
+             )
+         <|> return t)
 
 -- Types -----------------------------------------------------------------------
 
@@ -145,7 +135,11 @@ typeArraySpec :: CodaParser CTypeArray
 typeArraySpec =
     CTypeArray <$> typeSpec <*> subscripts
   where
-    subscripts = many $ try $ spaces >> subscript integerLitteral
+    subscripts = do
+        subs <- many $ try $ spaces >> subscript integerLitteral
+        return $ case subs of
+            [] -> Nothing
+            ss -> Just (length ss, ss)
 
 -- Instructions ----------------------------------------------------------------
 
@@ -156,7 +150,7 @@ stmt :: CodaParser CStmt
 stmt =     try (CDecl   <$> variableDecl)
        <|> try (CAssign <$> varExpr <* spaces <* char '=' <* spaces
                         <*> expr <* tailingSep)
-       <|> try (CExpr   <$> expr <* tailingSep)
+       <|> try (CExpr   <$> (fst <$> expr) <* tailingSep)
        <|> try (CIf     <$> (string "if" *> spaces *> guard) <*  spaces
                         <*> compoundStmt
                         <*> optionMaybe (try $    spaces *> string "else"
@@ -202,7 +196,7 @@ valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
 
 varExpr :: CodaParser CVarExpr
 varExpr = do
-    var <- identifer >>= getVar
+    var <- identifier >>= getVar
     CVarExpr var <$> getSubs var
   where
     -- Recherche dans la table des symboles la référence à la variable.
@@ -214,21 +208,20 @@ varExpr = do
                 fail $ printf "Unknown identifer : `%s`." (T.unpack ident)
 
     getSubs (CVar _ (CTypeArray _ dims) _) = do
-        subs <- many $ subscript subs
+        subs <- many $ try $ spaces >> subscript expr
         case (dims, subs) of
             -- Variable scalaire
             (Nothing, []   ) -> return []
             (Nothing, (_:_)) ->
-                fail $ printf "Trying to subscript `%s` which is a scalar."
-                              (T.unpack ident)
+                fail $ printf "Trying to subscript a scalar variable."
             -- Tableau
-            (Just ds, ss   ) -> 
-                let nDims = length ds + 1
-                    goSub ds ss
-
-    goSub [] [(s, tExpr)] = [s]
-    goSub [] [] = fail
-    
+            (Just (n, _), ss)
+                | n' <- length ss, n' /= n ->
+                    fail $ printf "Dereferencing `%d` dimension(s) of a `%d` \
+                                  \dimension(s) array." n' n
+                | any ((/= CInt) . snd) ss ->
+                    fail $ printf "Subscripts must be integer expressions."
+                | otherwise -> return $ map fst ss
 
 litteral :: CodaParser CLitteral
 litteral =     (CLitteralInt  <$> integerLitteral)
