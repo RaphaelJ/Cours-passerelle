@@ -40,18 +40,14 @@ parse = let emptyState = ParserState M.empty M.empty
 
 variableDecl :: CodaParser CVarDecl
 variableDecl = do
-    qual                  <- typeQual <* spaces1
-
-    mType                 <-     try (Just <$> typeArraySpec)
-                             <|> (string "auto" >> return Nothing)
-    spaces1
+    eType                 <- typeArraySpecInfer <* spaces1
 
     ident                 <- identifier <* spaces
     checkIdentifer ident
 
     mExpr                 <- optionMaybe (char '=' *> spaces *> expr)
 
-    decl@(CVarDecl var _) <- getVar qual mType ident mExpr
+    decl@(CVarDecl var _) <- getVar eType ident mExpr
     registerVar var
 
     tailingSep
@@ -67,24 +63,24 @@ variableDecl = do
     -- Retourne la définition de la variable, en vérifiant que celle-ci est
     -- correctement définie et initialisée.
 
-    -- Variables non initialisées
-    getVar CQualConst _                              _     Nothing           =
+    -- Variables non initialisées.
+    getVar (Left (CTypeArray CQualConst _ _))   _     Nothing           =
         fail "A constant must be assigned."
-    getVar CQualFree  (Just t)                       ident Nothing           =
-        return $ CVarDecl (CVar CQualFree t ident) Nothing
-    -- Variables initialisées
-    getVar _          (Just (CTypeArray _ (Just _))) _     (Just _)          =
-        fail "Arrays can't be assigned."
-    getVar qual       (Just t)                       ident (Just (e, tExpr))
-        | t == tExpr = return $ CVarDecl (CVar qual t ident) (Just e)
-        | otherwise  =
-            fail $ printf "Trying to assign an expression of type `%s` to a \
-                          \variable of type `%s`." (show tExpr) (show t)
-    -- Variables au typage inféré
-    getVar qual       Nothing                        ident Nothing           =
+    getVar (Right _)                            ident Nothing           =
         fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
-    getVar qual       Nothing                        ident (Just (e, tExpr)) =
-        return $ CVarDecl (CVar qual (CTypeArray tExpr Nothing) ident) (Just e)
+    -- Variables au type déclaré explicitement.
+    getVar (Left t)                             ident Nothing           =
+        return $ CVarDecl (CVar t ident) Nothing
+    getVar (Left t@(CTypeArray _ _ (Just _)))   ident (Just _)          =
+        fail "Arrays can't be assigned."
+    getVar (Left t@(CTypeArray _ prim Nothing)) ident (Just (e, tExpr))
+        | prim == tExpr = return $ CVarDecl (CVar t ident) (Just e)
+        | otherwise     =
+            fail $ printf "Trying to assign an expression of type `%s` to a \
+                          \variable of type `%s`." (show tExpr) (show prim)
+    -- Variables au type inféré.
+    getVar (Right qual )                        ident (Just (e, tExpr)) =
+        return $ CVarDecl (CVar (CTypeArray qaul tExpr Nothing) ident) (Just e)
 
 functionDecl :: CodaParser CFun
 functionDecl =
@@ -97,39 +93,31 @@ functionDecl =
     args = between (char '(' >> spaces) (spaces >> char ')')
                    (arg `sepBy` (spaces >> char ',' >> spaces))
 
+    -- Parse un argument et l'enregistre dans la table de symboles s'il est
+    -- associé à un identifier.
     arg = do
-        qual    <- typeQual
         t       <- argType
 
         mIdent  <- optionMaybe (try $ spaces1 *> identifier)
         case mIdent of
             Just ident -> do
-                let var = CVar
-                in 
+                let var = CVar qual
+                registerVar var
+                return $ CVarArgument var
             Nothing    ->
-        getArg qual t  mIdent
-        CArgument <$> typeArraySpec
-                    <*> 
-                    <*> 
+                return $ CAnonArgument t
 
+    -- Parse le type de l'argument et une éventuelle dimension implicite
+    -- supplémentaire.
     argType = do
-        t@(CTypeArray prim mDims) <- typeArraySpec
-        -- Parse une éventuelle dimension implicite supplémentaire.
-            (try $ subscript spaces >>
-                   case mDims of
-                        Just (nDims, dims) -> 
-                            CTypeArray prim (Just (nDims + 1, dims))
+        t@(CTypeArray qual prim mDims) <- typeArraySpec
+        (    try (subscript spaces >>
+                    case mDims of
+                        Just (n, dims) ->
+                            return $ CTypeArray qual prim (Just (n + 1, dims))
                         Nothing            ->
-                            CTypeArray prim (Just (1, []))
-            )
-        <|> return t
-
-    getArg qual t True (Just ident) =
-        let var = CVar qual 
-        CVarArgument 
-    get
-
-    
+                            return $ CTypeArray qual prim (Just (1, [])))
+         <|> return t)
 
 -- Types -----------------------------------------------------------------------
 
@@ -143,26 +131,56 @@ typeSpec =     try (string "int"  >> return CInt)
 
 typeArraySpec :: CodaParser CTypeArray
 typeArraySpec =
-    CTypeArray <$> typeSpec <*> subscripts
-  where
-    subscripts = many $ try $ spaces >> subscript integerLitteral
+    CTypeArray <$> typeQual <* spaces1
+               <*> typeSpec <*> typeSubscripts
+
+typeArraySpecInfer :: CodaParser (Either CTypeArray CQual)
+typeArraySpecInfer = do
+    qual <- typeQual <* spaces1
+    (    try (Left <$> CTypeArray qual <$> typeSpec <*> typeSubscripts)
+     <|> try (string "auto" >> return (Right qual)))
+
+typeSubscripts :: CodaParser (Maybe (Int, [Int]))
+typeSubscripts = many $ try $ spaces >> subscript integerLitteral
 
 -- Instructions ----------------------------------------------------------------
 
-compoundStmt :: CodaParser CCompoundStmt
-compoundStmt = between (char '{' >> spaces) (char '}') (many (stmt <* spaces))
+-- | Parse un ensemble d\'instructions. Le type donné en argument donne le
+-- type de retour de la fonction. Retourne 'True' si le bloc retourne toujours
+-- une valeur quelque soit le chemin d\'exécution.
+compoundStmt :: Maybe CType -> CodaParser (CCompoundStmt, Bool)
+compoundStmt retType = do
+    char '{' *> goCompound Nothing <* spaces <* char '{'
+  where
+    -- Parse les instructions et vérifie qu'aucune instruction du bloc n'est
+    -- inaccessible.
+    goCompound precRet =
+            try (do (x, ret) <- spaces >> stmt retType
+                    -- Erreur si l'instruction précédente retournait une valeur
+                    -- car on a pu parser une nouvelle instruction.
+                    -- Sinon, on continue.
+                    case precRet of
+                        Just _  -> fail "Unreachable statement."
+                        Nothing -> first (x :) <$> goCompound ret)
+        <|> return ([], precRet)
 
-stmt :: CodaParser CStmt
-stmt =     try (CDecl   <$> variableDecl)
-       <|> try (CAssign <$> varExpr <* spaces <* char '=' <* spaces
-                        <*> expr <* tailingSep)
-       <|> try (CExpr   <$> expr <* tailingSep)
-       <|> try (CIf     <$> (string "if" *> spaces *> guard) <*  spaces
-                        <*> compoundStmt
-                        <*> optionMaybe (try $    spaces *> string "else"
-                                               *> spaces *> compoundStmt))
-       <|> try (CWhile  <$> (string "while" *> spaces *> guard) <* spaces
-                        <*> compoundStmt)
+-- | Parse une instruction. Le type donné en argument donne le type de retour de
+-- la fonction. Retourne 'True' si l'instruction retourne toujours  une valeur
+-- quelque soit le chemin d\'exécution.
+stmt :: Maybe CType -> CodaParser (CStmt, Bool)
+stmt retType =
+        try (CDecl   <$> variableDecl)
+    <|> try (CAssign <$> varExpr <* spaces <* char '=' <* spaces
+                     <*> expr <* tailingSep)
+    <|> try (CReturn <$> (string "return" *> spaces1 *> expr)
+                     <*  tailingSep)
+    <|> try (CExpr   <$> expr <* tailingSep)
+    <|> try (CIf     <$> (string "if" *> spaces *> guard) <*  spaces
+                     <*> compoundStmt
+                     <*> optionMaybe (try $    spaces *> string "else"
+                                            *> spaces *> compoundStmt))
+    <|> try (CWhile  <$> (string "while" *> spaces *> guard) <* spaces
+                     <*> compoundStmt)
   where
     guard = between (char '(' >> spaces) (spaces >> char ')') expr
 

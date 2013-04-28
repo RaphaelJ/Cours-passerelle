@@ -23,7 +23,7 @@ type CIdent = Text
 
 -- Variables et fonctions ------------------------------------------------------
 
-data CVar = CVar CQual CTypeArray CIdent
+data CVar = CVar CTypeArray CIdent
     deriving (Show, Eq)
 
 data CVarDecl = CVarDecl CVar (Maybe CExpr)
@@ -39,13 +39,13 @@ data CType = CInt | CBool deriving (Show, Eq)
 -- | Permet de définir un type de variable ou d\'un tableau.
 -- Si la variable est un tableau, contient le nombre de dimensions ainsi que les
 -- tailles d\'au moins les n-1 premières dimensions du tableau.
-data CTypeArray = CTypeArray CType (Maybe (Int, [Int]))
+data CTypeArray = CTypeArray CQual CType (Maybe (Int, [Int]))
     deriving (Show, Eq)
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
 
 -- | Encode les arguments avec une variable associée ou non.
-data CArgument = CVarArgument CVar | CAnonArgument CQual CTypeArray
+data CArgument = CVarArgument CVar | CAnonArgument CTypeArray
     deriving (Show, Eq)
 
 -- Instructions et expressions -------------------------------------------------
@@ -54,6 +54,7 @@ type CCompoundStmt = [CStmt]
 
 data CStmt = CDecl CVar
            | CAssign CVarExpr CExpr
+           | CReturn CExpr
            | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt
