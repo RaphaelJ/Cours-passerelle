@@ -101,7 +101,7 @@ functionDecl =
         mIdent  <- optionMaybe (try $ spaces1 *> identifier)
         case mIdent of
             Just ident -> do
-                let var = CVar qual
+                let var = CVar t ident
                 registerVar var
                 return $ CVarArgument var
             Nothing    ->
@@ -220,7 +220,7 @@ valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
 
 varExpr :: CodaParser CVarExpr
 varExpr = do
-    var <- identifer >>= getVar
+    var <- identifier >>= getVar
     CVarExpr var <$> getSubs var
   where
     -- Recherche dans la table des symboles la référence à la variable.
@@ -232,21 +232,20 @@ varExpr = do
                 fail $ printf "Unknown identifer : `%s`." (T.unpack ident)
 
     getSubs (CVar _ (CTypeArray _ dims) _) = do
-        subs <- many $ subscript subs
+        subs <- many $ try $ spaces >> subscript expr
         case (dims, subs) of
             -- Variable scalaire
             (Nothing, []   ) -> return []
             (Nothing, (_:_)) ->
-                fail $ printf "Trying to subscript `%s` which is a scalar."
-                              (T.unpack ident)
+                fail $ printf "Trying to subscript a scalar variable."
             -- Tableau
-            (Just ds, ss   ) -> 
-                let nDims = length ds + 1
-                    goSub ds ss
-
-    goSub [] [(s, tExpr)] = [s]
-    goSub [] [] = fail
-    
+            (Just (n, _), ss)
+                | n' <- length ss, n' /= n ->
+                    fail $ printf "Dereferencing `%d` dimension(s) of a `%d` \
+                                  \dimension(s) array." n' n
+                | any ((/= CInt) . snd) ss ->
+                    fail $ printf "Subscripts must be integer expressions."
+                | otherwise -> return $ map fst ss
 
 litteral :: CodaParser CLitteral
 litteral =     (CLitteralInt  <$> integerLitteral)
