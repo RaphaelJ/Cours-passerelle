@@ -54,7 +54,7 @@ type CCompoundStmt = [CStmt]
 
 data CStmt = CDecl CVarDecl
            | CAssign CVarExpr CExpr
-           | CReturn CExpr
+           | CReturn (Maybe CExpr)
            | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt

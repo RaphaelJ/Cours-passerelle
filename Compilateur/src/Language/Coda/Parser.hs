@@ -1,8 +1,9 @@
+{-# LANGUAGE TupleSections #-}
 -- | Définit un parser Parsec capable de gérérer un 'AST' à partir d'un flux de
 -- caractères (Lazy Text).
 module Language.Coda.Parser (CodaParser, parser, parse) where
 
-import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), pure)
+import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), empty, pure)
 import Control.Monad (when)
 import qualified Data.Map as M
 import Text.Printf (printf)
@@ -159,30 +160,54 @@ compoundStmt retType = do
                     -- Erreur si l'instruction précédente retournait une valeur
                     -- car on a pu parser une nouvelle instruction.
                     -- Sinon, on continue.
-                    case precRet of
-                        Just _  -> fail "Unreachable statement."
-                        Nothing -> first (x :) <$> goCompound ret)
+                    if precRet then fail "Unreachable statement."
+                               else first (x :) <$> goCompound ret)
         <|> return ([], precRet)
 
 -- | Parse une instruction. Le type donné en argument donne le type de retour de
--- la fonction. Retourne 'True' si l'instruction retourne toujours  une valeur
+-- la fonction. Retourne 'True' si l'instruction retourne toujours une valeur
 -- quelque soit le chemin d\'exécution.
 stmt :: Maybe CType -> CodaParser (CStmt, Bool)
 stmt retType =
-        try (CDecl   <$> variableDecl)
-    <|> try (CAssign <$> varExpr <* spaces <* char '=' <* spaces
-                     <*> expr <* tailingSep)
-    <|> try (CReturn <$> (string "return" *> spaces1 *> expr)
-                     <*  tailingSep)
-    <|> try (CExpr   <$> expr <* tailingSep)
-    <|> try (CIf     <$> (string "if" *> spaces *> guard) <*  spaces
-                     <*> compoundStmt
-                     <*> optionMaybe (try $    spaces *> string "else"
-                                            *> spaces *> compoundStmt))
-    <|> try (CWhile  <$> (string "while" *> spaces *> guard) <* spaces
-                     <*> compoundStmt)
+        try ((, False) <$> CDecl   <$> variableDecl)
+    <|> try ((, False) <$> CAssign <$> varExpr <* spaces <* char '=' <* spaces
+                                   <*> expr <* tailingSep)
+    <|> try returnStmt
+    <|> try ((, False) <$> CExpr   <$> expr <* tailingSep)
+    <|> try ifStmt
+    <|> try ((, False) <$> CWhile  <$> (string "while" *> spaces *> guard)
+                                   <*  spaces
+                                   <*> compoundStmt)
   where
-    guard = between (char '(' >> spaces) (spaces >> char ')') expr
+    returnStmt = do
+        string "return"
+        stmt <- case retType of
+            Just t  -> do
+                (e, tExpr) <- spaces1 >> expr
+                if t == tExpr
+                    then fail $ printf "Return's expression type (`%s`) doesn't\
+                                       \ match the function type (`%s`)."
+                                       (show tExpr) (show t)
+                    else return $ CReturn (Just e)
+            Nothing -> return $ CReturn Nothing
+        spaces >> tailingSep >> return (stmt, True)
+
+    ifStmt = do
+        cond             <- (string "if" *> spaces *> guard) <* spaces
+
+        (ifStmts, ifRet) <- compoundStmt retType
+        mElse            <- optionMaybe (try $ spaces *> string "else" *>
+                                               spaces *> compoundStmt retType)
+
+        let (elseStmts, ret) = case mElse of
+                Just (elseStmts, elseRet) -> (Just elseStmts, ifRet && elseRet)
+                Nothing                   -> (Nothing       , ifRet)
+        return (CIf cond ifStmts elseStmts, ret)
+
+    guard = do
+        (e, tExpr) <- between (char '(' >> spaces) (spaces >> char ')') expr
+        if tExpr == CBool then return e
+                          else fail "Guard must be a boolean expression."
 
 -- Expressions -----------------------------------------------------------------
 
@@ -265,16 +290,18 @@ identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
 
 -- Utilitaires -----------------------------------------------------------------
 
--- | Parse une fin d'instruction.
+-- | Parse jusqu\'à la fin d'instruction.
 tailingSep :: CodaParser Char
 tailingSep = spaces >> char ';'
 
 -- | Parse un ensemble d'opérateurs binaires dotés d'une priorité identique.
+-- Les deux premiers arguments donnent les types des expressions 
 -- Chaque opérateur est fourni avec le parseur de son symbole. Le second
 -- argument parse les opérantes de l'opérateur (càd les l'expression ayant une
 -- priorité plus importante). Effectue une association sur la gauche.
-binaryExpr :: [CodaParser CBinOp] -> CodaParser CExpr -> CodaParser CExpr
-binaryExpr ops inner =
+binaryExpr :: CType -> CType -> [CodaParser CBinOp] -> CodaParser (CExpr, CType)
+           -> (CodaParser CExpr, CType)
+binaryExpr termsType retType ops inner =
     -- Parse l'expression de gauche "jusqu'au plus loin possible".
     inner >>= go
   where

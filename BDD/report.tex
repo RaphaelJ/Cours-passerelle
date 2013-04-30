@@ -1,0 +1,213 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{verbatim}
+\pagestyle{headings}
+
+\title{Projet de base de données}
+\author{Raphael Javaux et Marien Bourguignon}
+\date{Avril 2013}
+
+\begin{document}
+
+\maketitle
+
+\section{Technologies}
+    \paragraph{}Nous avons décidé d'utiliser le framework bootstrap (une
+librairie HTML5 + CSS3 + Javascript) pour la partie HTML de notre site web.
+    Pour les accès à la base de données, nous avons choisi d'utiliser PDO
+de PHP.
+
+\section{Fonctionnement du Site Web}
+    \paragraph{}Notre projet est accessible à l'adresse suivante :
+    \begin{center}
+        \textbf{http://ks201461.kimsufi.com/bdd/}
+    \end{center}
+
+      \subsection{Premiere connexion}
+        \paragraph{}Lorsqu'un utilisateur se connecte pour la première fois, il 
+est automatiquement redirigé sur la page de login (sigin.php).
+    Si notre script arrive à se connecter à la base de données avec les 
+identifiants qu'il a fourni, une variable de session sera initialisée, qui lui
+évitera d'être redirigé à nouveau vers la page de connexion par la suite.
+
+        \paragraph{}Il est possible de se connecter sur notre BDD 
+avec l'utilisateur \textbf{ULg} et le mot de passe \textbf{batman}.
+
+\section{Requêtes}
+  \subsection{Fonctionnalité (a) (global\_search.php)}
+    \paragraph{} Nous avons implémenté cette partie totalement génériquement.
+Il est tout à fait possible de porter ce code dans une autre application sans
+devoir changer la moindre parcelle de code.
+
+    \paragraph{}Nous avons découpé le travail de la manière suivante:
+    \begin{itemize}
+        \item[1] Rechercher la liste des tables de la base de données utilisée ;
+        \item[2] L'utilisateur sélectionne une table ;
+        \item[3] Rechercher, pour la table sélectionnée, toutes les colonnes de
+        la clef primaire ;
+        \item[4] L'utilisateur spécifie les valeurs pour toutes les colonnes de
+        la clé ;
+        \item[5] On crée la requête finale, en prenant en compte le \textit{*} ;
+        \item[6] Le résultat est affiché dans un tableau.
+    \end{itemize}
+
+        La procédure vérifie tous les champs fournis par l'utilisateur pour 
+éviter tout trifouillage dans la base de données.
+
+    \subsubsection{Requêtes}
+
+    \paragraph{Recherche des tables}
+    \begin{verbatim}
+        SHOW TABLES
+    \end{verbatim}
+
+    \paragraph{Recherche des clefs primaires}
+    \begin{verbatim}
+        SHOW KEYS FROM <tablename> WHERE Key_name = 'PRIMARY'
+    \end{verbatim}
+
+    \paragraph{Recherche sur les clefs}
+    \begin{verbatim}
+        SELECT * FROM <tablename> WHERE <conditions>
+        Ou <conditions> est du type "champ = valeur".
+    \end{verbatim}
+
+  \subsection{Fonctionnalité (b) (vehicule\_availability.php)}
+
+    \paragraph{Sélection des informations des véhicules disponibles entre deux
+    dates pour une catégorie}
+    \begin{verbatim}
+        SELECT v.*, m.*
+        FROM vehicule AS v
+        INNER JOIN modele AS m
+            ON m.id_mod = v.id_mod
+        WHERE m.id_cat = <id_cat>
+          AND NOT EXISTS (
+            -- Disponible s'il n'existe pas un contrat
+            -- qui se superpose aux dates souhaitées.
+            SELECT *
+            FROM contrat AS c
+            WHERE     <date_debut> <= c.date_fin
+                  AND <date_fin>   >= c.date_debut
+                  AND c.id_veh = v.id_veh
+            );
+    \end{verbatim}
+
+  \subsection{Fonctionnalité (c) (new\_transaction.php)}
+
+    \paragraph{}Les requêtes de cette page s'effectuent dans une même
+transaction pour éviter des lecture non répétables entre la validité des
+données fournies et l'insertion.
+
+    \paragraph{Sélection de l'ensemble des noms des clients}
+    \begin{verbatim}
+        SELECT p.id_client,
+               CONCAT(p.prenom_part, ' ', p.nom_part) AS nom
+        FROM particulier AS p
+        UNION
+        SELECT s.id_client, s.nom_societe AS nom
+        FROM societe AS s;
+    \end{verbatim}
+
+    \paragraph{Sélection de l'ensemble des conducteurs}
+    \begin{verbatim}
+        SELECT cc.no_permis,
+               CONCAT(p.prenom_part, ' ', p.nom_part) AS nom
+        FROM particulier AS p
+        INNER JOIN cond_client AS cc
+            ON cc.id_client = p.id_client
+        UNION
+        SELECT cc.no_permis, s.nom_societe AS nom
+        FROM societe AS s
+        INNER JOIN cond_client AS cc
+            ON cc.id_client = s.id_client
+        UNION
+        SELECT ca.no_permis,
+                CONCAT(ca.prenom_conducteur_autre, ' ', 
+                        ca.nom_conducteur_autre) AS nom
+        FROM cond_autre AS ca;
+    \end{verbatim}
+
+    \paragraph{Sélection des véhicules disponibles pour la période souhaitée}
+    \begin{verbatim}
+        SELECT v.*, m.*
+        FROM vehicule AS v
+        INNER JOIN modele AS m
+            ON m.id_mod = v.id_mod
+        WHERE NOT EXISTS (
+            -- Disponible s'il n'existe pas un contrat
+            -- qui se superpose aux dates souhaitées.
+            SELECT *
+            FROM contrat AS c
+            WHERE   <date_debut> <= c.date_fin
+                AND <date_fin>   >= c.date_debut
+                AND c.id_veh = v.id_veh
+            );
+    \end{verbatim}
+
+    \paragraph{Insertion du contrat}
+    \begin{verbatim}
+        INSERT INTO contrat
+        (id_veh, id_client, date_debut, date_fin, km_debut, km_fin)
+        VALUES (<id_veh>, <id_client>, <date_debut>, <date_fin>, NULL, NULL);
+    \end{verbatim}
+
+    \paragraph{Insertion des conducteurs du contrat}
+    \begin{verbatim}
+        INSERT INTO conduit (id_cont, no_permis)
+        VALUES (<id_contrat>, <no_permis>);
+    \end{verbatim}
+
+  \subsection{Fonctionnalité (d) (finish\_contract.php)}
+
+    \paragraph{}Les requêtes de cette page s'effectuent dans une même
+transaction pour éviter de facturer deux fois la même commande.
+
+    \paragraph{Sélection des contrats non facturés}
+    \begin{verbatim}
+        SELECT c.id_cont
+        FROM contrat AS c
+        WHERE NOT EXISTS (
+            SELECT *
+            FROM facture AS f
+            WHERE f.id_cont = c.id_cont)
+        ORDER BY c.id_cont;
+    \end{verbatim}
+
+    \paragraph{Mise à jour du kilométrage du contrat}
+    \begin{verbatim}
+        UPDATE contrat
+        SET km_debut = <km_debut>, km_fin = <km_fin>
+        WHERE id_cont = <id_cont>;
+    \end{verbatim}
+
+    \paragraph{Insertion et calcul de la facture}
+    \begin{verbatim}
+        INSERT INTO facture (id_cont, prix)
+        SELECT con.id_cont,
+                 DATEDIFF(con.date_fin, con.date_debut) * cat.prix_jour
+               + (con.km_fin - con.km_debut) * cat.prix_km AS prix
+        FROM contrat AS con
+        INNER JOIN vehicule AS v
+            ON v.id_veh = con.id_veh
+        INNER JOIN modele AS m
+            ON m.id_mod = v.id_mod
+        INNER JOIN categorie AS cat
+            ON cat.id_cat = m.id_cat
+        WHERE con.id_cont = <id_cont>;
+    \end{verbatim}
+
+  \subsection{Fonctionnalité (e) (search\_id.php)}
+
+    \paragraph{Sélection du véhicule ayant le plus voyagé sur une période}
+    \begin{verbatim}
+        SELECT c.id_veh, SUM(c.km_fin - c.km_debut) AS kms
+        FROM contrat AS c
+        WHERE c.date_debut >= <date_debut> AND c.date_fin <= <date_fin>
+        GROUP BY c.id_veh
+        ORDER BY kms DESC
+        LIMIT 1;
+    \end{verbatim}
+
+\end{document}
