@@ -79,7 +79,7 @@ variableDecl = do
         | prim == tExpr = return $ CVarDecl (CVar t ident) (Just e)
         | otherwise     =
             fail $ printf "Trying to assign an expression of type `%s` to a \
-                          \variable of type `%s`." (show tExpr) (show prim)
+                          \declaration of type `%s`." (show tExpr) (show prim)
     -- Variables au type inféré.
     getVar (Right qual )                        ident (Just (e, tExpr)) =
         return $ CVarDecl (CVar (CTypeArray qual tExpr Nothing) ident) (Just e)
@@ -152,7 +152,8 @@ typeSubscripts = many $ try $ spaces >> subscript integerLitteral
 -- une valeur quelque soit le chemin d\'exécution.
 compoundStmt :: Maybe CType -> CodaParser (CCompoundStmt, Bool)
 compoundStmt retType = do
-    char '{' *> spaces *> goCompound Nothing <* char '{'
+    st <- getState -- Sauvegarde l'état des tables de symboles.
+    char '{' *> spaces *> goCompound Nothing <* char '{' <* putState st
   where
     -- Parse les instructions et vérifie qu'aucune instruction du bloc n'est
     -- inaccessible.
@@ -175,9 +176,8 @@ stmt retType =
     <|> try ((, False) <$> CWhile  <$> (string "while" *> spaces *> guard)
                                    <*  spaces
                                    <*> compoundStmt)
-        try ((, False) <$> CDecl   <$> variableDecl)
-    <|> try ((, False) <$> CAssign <$> varExpr <* spaces <* char '=' <* spaces
-                                   <*> expr <* tailingSep)
+    <|> try assign
+    <|> try ((, False) <$> CDecl   <$> variableDecl)
     <|> try ((, False) <$> CExpr   <$> expr <* tailingSep)
   where
     returnStmt = do
@@ -204,6 +204,18 @@ stmt retType =
                 Just (elseStmts, elseRet) -> (Just elseStmts, ifRet && elseRet)
                 Nothing                   -> (Nothing       , ifRet)
         return (CIf cond ifStmts elseStmts, ret)
+
+    assign = do
+        (eLeft, (qLeft, tLeft)) <- varExpr <* spaces <* char '=' <* spaces
+        (eRight, tRight)        <- expr    <* tailingSep
+
+        case (qLeft, tLeft, tRight) of
+            (CQualConst, _   , _)     -> fail "Can't assign a constant."
+            (CQualFree , left, right) | left /= right ->
+                fail $ printf "Trying to assign an expression of type `%s` to a\
+                              \ variable of type `%s`." (show right) (show left)
+                                      | otherwise     ->
+                return (CAssign eLeft eRight, False)
 
     guard = do
         (e, tExpr) <- between (char '(' >> spaces) (spaces >> char ')') expr
@@ -244,7 +256,7 @@ valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
     callArgs = between (char '(' >> spaces) (spaces >> char ')')
                        (expr `sepBy` (spaces >> char ',' >> spaces))
 
-varExpr :: CodaParser CVarExpr
+varExpr :: CodaParser (CVarExpr, (CQual, CType))
 varExpr = do
     var <- identifier >>= getVar
     CVarExpr var <$> getSubs var
