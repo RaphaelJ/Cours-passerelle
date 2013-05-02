@@ -308,13 +308,14 @@ tailingSep :: CodaParser Char
 tailingSep = spaces >> char ';'
 
 -- | Parse un ensemble d'opérateurs binaires dotés d'une priorité identique.
--- Les deux premiers arguments donnent les types des expressions 
--- Chaque opérateur est fourni avec le parseur de son symbole. Le second
+-- Le premier et le second argument donnent respectivement le type des
+-- opérantes et le type de retour de l'application des opérateurs.
+-- Chaque opérateur est fourni avec le parseur de son symbole. Le dernier
 -- argument parse les opérantes de l'opérateur (càd les l'expression ayant une
 -- priorité plus importante). Effectue une association sur la gauche.
 binaryExpr :: CType -> CType -> [CodaParser CBinOp] -> CodaParser (CExpr, CType)
            -> (CodaParser CExpr, CType)
-binaryExpr termsType retType ops inner =
+binaryExpr innerType retType ops inner =
     -- Parse l'expression de gauche "jusqu'au plus loin possible".
     inner >>= go
   where
