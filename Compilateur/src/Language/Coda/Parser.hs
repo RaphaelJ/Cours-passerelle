@@ -170,8 +170,8 @@ compoundStmt retType = do
 -- quelque soit le chemin d\'exécution.
 stmt :: Maybe CType -> CodaParser (CStmt, Bool)
 stmt retType =
-        try ifStmt
-    <|> try returnStmt
+        try returnStmt
+    <|> try ifStmt
     <|> try ((, False) <$> CWhile  <$> (string "while" *> spaces *> guard)
                                    <*  spaces
                                    <*> compoundStmt)
@@ -196,9 +196,9 @@ stmt retType =
     ifStmt = do
         cond             <- (string "if" *> spaces *> guard) <* spaces
 
-        (ifStmts, ifRet) <- compoundStmt retType
-        mElse            <- optionMaybe (try $ spaces *> string "else" *>
-                                               spaces *> compoundStmt retType)
+        (ifStmts, ifRet) <- compoundStmt retType <* spaces
+        mElse            <- optionMaybe (string "else" *> spaces *>
+                                         compoundStmt retType)
 
         let (elseStmts, ret) = case mElse of
                 Just (elseStmts, elseRet) -> (Just elseStmts, ifRet && elseRet)
