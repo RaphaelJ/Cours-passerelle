@@ -3,6 +3,7 @@
 -- caractères (Lazy Text).
 module Language.Coda.Parser (CodaParser, parser, parse) where
 
+import Control.Arrow (first)
 import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), empty, pure)
 import Control.Monad (when)
 import qualified Data.Map as M
@@ -81,14 +82,14 @@ variableDecl = do
                           \variable of type `%s`." (show tExpr) (show prim)
     -- Variables au type inféré.
     getVar (Right qual )                        ident (Just (e, tExpr)) =
-        return $ CVarDecl (CVar (CTypeArray qaul tExpr Nothing) ident) (Just e)
+        return $ CVarDecl (CVar (CTypeArray qual tExpr Nothing) ident) (Just e)
 
 functionDecl :: CodaParser CFun
 functionDecl =
-    CFun <$> optionMaybe (typeSpec <* spaces1)
+    CFun <$> optionMaybe $ try $ typeSpec <* spaces1
          <*> identifier <* spaces
          <*> args <* spaces
-         <*> (    try (Just <$> compoundStmt)
+         <*> (    (Just <$> compoundStmt)
               <|> (char ';' >> return Nothing))
   where
     args = between (char '(' >> spaces) (spaces >> char ')')
@@ -112,34 +113,34 @@ functionDecl =
     -- supplémentaire.
     argType = do
         t@(CTypeArray qual prim mDims) <- typeArraySpec
-        (    try (subscript spaces >>
-                    case mDims of
-                        Just (n, dims) ->
-                            return $ CTypeArray qual prim (Just (n + 1, dims))
-                        Nothing            ->
-                            return $ CTypeArray qual prim (Just (1, [])))
+        (    (subscript spaces >>
+              case mDims of
+                Just (n, dims) ->
+                    return $ CTypeArray qual prim (Just (n + 1, dims))
+                Nothing            ->
+                    return $ CTypeArray qual prim (Just (1, [])))
          <|> return t)
 
 -- Types -----------------------------------------------------------------------
 
 typeQual :: CodaParser CQual
-typeQual =     try (string "const" >> return CQualConst)
+typeQual =     (string "const" >> return CQualConst)
            <|> return CQualFree
 
 typeSpec :: CodaParser CType
-typeSpec =     try (string "int"  >> return CInt)
-           <|> try (string "bool" >> return CBool)
+typeSpec =     (string "int"  >> return CInt)
+           <|> (string "bool" >> return CBool)
 
 typeArraySpec :: CodaParser CTypeArray
 typeArraySpec =
-    CTypeArray <$> typeQual <* spaces1
-               <*> typeSpec <*> typeSubscripts
+    CTypeArray <$> typeQual <* spaces1 <*> typeSpec <*> typeSubscripts
 
+-- | Parse un type explicite ou @auto@ avec son qualifieur.
 typeArraySpecInfer :: CodaParser (Either CTypeArray CQual)
 typeArraySpecInfer = do
     qual <- typeQual <* spaces1
-    (    try (Left <$> CTypeArray qual <$> typeSpec <*> typeSubscripts)
-     <|> try (string "auto" >> return (Right qual)))
+    (    (Left <$> CTypeArray qual <$> typeSpec <*> typeSubscripts)
+     <|> (string "auto" >> return (Right qual)))
 
 typeSubscripts :: CodaParser (Maybe (Int, [Int]))
 typeSubscripts = many $ try $ spaces >> subscript integerLitteral
@@ -151,17 +152,17 @@ typeSubscripts = many $ try $ spaces >> subscript integerLitteral
 -- une valeur quelque soit le chemin d\'exécution.
 compoundStmt :: Maybe CType -> CodaParser (CCompoundStmt, Bool)
 compoundStmt retType = do
-    char '{' *> goCompound Nothing <* spaces <* char '{'
+    char '{' *> spaces *> goCompound Nothing <* char '{'
   where
     -- Parse les instructions et vérifie qu'aucune instruction du bloc n'est
     -- inaccessible.
     goCompound precRet =
-            try (do (x, ret) <- spaces >> stmt retType
-                    -- Erreur si l'instruction précédente retournait une valeur
-                    -- car on a pu parser une nouvelle instruction.
-                    -- Sinon, on continue.
-                    if precRet then fail "Unreachable statement."
-                               else first (x :) <$> goCompound ret)
+            (do (x, ret) <- stmt retType <* spaces
+                -- Erreur si l'instruction précédente retournait une valeur
+                -- car on a pu parser une nouvelle instruction.
+                -- Sinon, on continue.
+                if precRet then fail "Unreachable statement."
+                           else first (x :) <$> goCompound ret)
         <|> return ([], precRet)
 
 -- | Parse une instruction. Le type donné en argument donne le type de retour de
@@ -169,15 +170,15 @@ compoundStmt retType = do
 -- quelque soit le chemin d\'exécution.
 stmt :: Maybe CType -> CodaParser (CStmt, Bool)
 stmt retType =
-        try ((, False) <$> CDecl   <$> variableDecl)
-    <|> try ((, False) <$> CAssign <$> varExpr <* spaces <* char '=' <* spaces
-                                   <*> expr <* tailingSep)
+        try ifStmt
     <|> try returnStmt
-    <|> try ((, False) <$> CExpr   <$> expr <* tailingSep)
-    <|> try ifStmt
     <|> try ((, False) <$> CWhile  <$> (string "while" *> spaces *> guard)
                                    <*  spaces
                                    <*> compoundStmt)
+        try ((, False) <$> CDecl   <$> variableDecl)
+    <|> try ((, False) <$> CAssign <$> varExpr <* spaces <* char '=' <* spaces
+                                   <*> expr <* tailingSep)
+    <|> try ((, False) <$> CExpr   <$> expr <* tailingSep)
   where
     returnStmt = do
         string "return"
