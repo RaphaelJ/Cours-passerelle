@@ -29,24 +29,46 @@ data CVar = CVar CTypeArray CIdent
 data CVarDecl = CVarDecl CVar (Maybe CExpr)
     deriving (Show, Eq)
 
-data CFun = CFun (Maybe CType) CIdent [CArgument] (Maybe CCompoundStmt)
+data CFun = CFun (Maybe CType) CIdent CArguments (Maybe CCompoundStmt)
     deriving (Show, Eq)
 
 -- Types -----------------------------------------------------------------------
 
 data CType = CInt | CBool deriving (Show, Eq)
 
--- | Permet de définir un type de variable ou d\'un tableau.
--- Si la variable est un tableau, contient le nombre de dimensions ainsi que les
--- tailles d\'au moins les n-1 premières dimensions du tableau.
-data CTypeArray = CTypeArray CQual CType (Maybe (Int, [Int]))
+data CTypeArray = CTypeArray CQual CType CDims
     deriving (Show, Eq)
+
+-- | Si la variable est un tableau, contient le nombre de dimensions ainsi que 
+-- les tailles d\'au moins les n-1 premières dimensions du tableau.
+data CDims = CScalar | CArray Int [Int]
+    deriving (Show)
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
 
--- | Encode les arguments avec une variable associée ou non.
+newtype CArguments = CArguments [CArgument]
+    deriving (Show)
+
+-- | Encode un argument avec un nom de variable associée ou non.
 data CArgument = CVarArgument CVar | CAnonArgument CTypeArray
-    deriving (Show, Eq)
+    deriving (Show)
+
+instance Eq CDims where
+    CScalar       == CScalar         = True
+    CArray n dims == CArray n' dims' = n == n' && take n dims == take n' dims'
+    _             == _               = False
+
+instance Eq CArguments where
+    (CArguments (x:xs)) == (CArguments (y:ys)) =
+        x == y && CArguments xs == CArguments ys
+    (CArguments [])     == (CArguments [])     = True
+    _                   == _                   = False
+
+instance Eq CArgument where
+    a == b = getType a == getType b
+  where
+    getType (CVarArgument (CVar t _)) = t
+    getType (CAnonArgument t)         = t
 
 -- Instructions et expressions -------------------------------------------------
 

@@ -30,8 +30,8 @@ parser :: CodaParser AST
 parser =
     spaces *> many (declaration <* spaces) <* eof
   where
-    declaration =     try (CTopLevelVar <$> variableDecl)
-                  <|> try (CTopLevelFun <$> functionDecl)
+    declaration = try (CTopLevelVar <$> variableDecl)
+              <|>     (CTopLevelFun <$> functionDecl)
 
 -- | Exécute le parseur sur un flux de texte.
 parse :: SourceName -> TL.Text -> Either ParseError AST
@@ -86,14 +86,23 @@ variableDecl = do
 
 functionDecl :: CodaParser CFun
 functionDecl =
-    CFun <$> optionMaybe $ try $ typeSpec <* spaces1
-         <*> identifier <* spaces
-         <*> args <* spaces
-         <*> (    (Just <$> compoundStmt)
-              <|> (char ';' >> return Nothing))
+    tRet  <- optionMaybe (try $ typeSpec <* spaces1)
+    ident <- identifer <* spaces
+    tArgs <- args <* spaces
+
+    -- Enregistre la déclaration de la fonction avant la définition pour
+    -- permettre les appels récursifs.
+    let decl = CFun tRet ident tArgs Nothing
+    registerFun decl
+
+    (    (do def <- CFun tRet ident tArgs <$> compoundStmt
+             registerFun def
+ 
+ return def)
+     <|> (char ';' >> return decl))
   where
     args = between (char '(' >> spaces) (spaces >> char ')')
-                   (arg `sepBy` (spaces >> char ',' >> spaces))
+                   (CArguments <$> (arg `sepBy` (spaces >> char ',' >> spaces)))
 
     -- Parse un argument et l'enregistre dans la table de symboles s'il est
     -- associé à un identifier.
@@ -120,6 +129,27 @@ functionDecl =
                 Nothing            ->
                     return $ CTypeArray qual prim (Just (1, [])))
          <|> return t)
+
+    registerFun fun@(CFun tRet ident args mStmts) =
+        st <- psFuns <$> getState
+        case ident `M.lookup` st of
+            Just (CFun tRet' _ args' mStmts') | tRet' /= tRet ->
+                fail $ printf "Function `%s` is already declared with a \
+                              \different return type." ident
+                                              | args /= args' ->
+                fail $ printf "Function `%s` is already declared with \
+                              \different argument types." ident
+                                              | otherwise     ->
+                case (mStmts, mStmts') of
+                    (Just _ , Just _)  ->
+                        fail $ printf "Multiple definitions of function `%s`."
+                                      ident
+                    (Just _ , _)       ->
+                        modifyState $ \st ->
+                            st { psFuns = M.insert ident fun (psFuns st) }
+            Nothing ->
+                modifyState $ \st ->
+                    st { psFuns = M.insert ident fun (psFuns st) }
 
 -- Types -----------------------------------------------------------------------
 
@@ -315,7 +345,7 @@ tailingSep = spaces >> char ';'
 -- priorité plus importante). Effectue une association sur la gauche.
 binaryExpr :: CType -> CType -> [CodaParser CBinOp] -> CodaParser (CExpr, CType)
            -> (CodaParser CExpr, CType)
-binaryExpr innerType retType ops inner =
+binaryExpr tInner tRet ops inner =
     -- Parse l'expression de gauche "jusqu'au plus loin possible".
     inner >>= go
   where
@@ -327,13 +357,22 @@ binaryExpr innerType retType ops inner =
     tryOperators left (p:ps) = tryOperator left p <|> tryOperators left ps
     tryOperators left []     = return left
 
-    tryOperator left p = try $ do
-        op <- CBinOp <$> p <*> pure left <* spaces
-                           <*> inner
-        go op -- Parce une occurrence suivante de ces mêmes opérateurs.
+    tryOperator (eLeft, tLeft) p = do
+        op               <- p
+        when (tLeft /= tInner) $ opTypeError tLeft "left"
+        (eRight, tRight) <- spaces *> inner
+        when (tRight /= tInner) $ opTypeError tRight "right"
+
+        -- Parse une occurrence suivante de ces mêmes opérateurs.
+        go (CBinOp op eLeft eRight)
+
+    opTypeError tOp side =
+        fail $ printf "Trying to a apply an expression of type `%s` to the %s \
+                      \argument of an `%s` operator."
+                      (show tOp) side (show tInner)
 
 -- | Parse une expression de définition ou de déréférencement d'une dimension
--- d'un tableau. Le parseur \'inner\' parse le contenu entre [ et ]. Ignore les
+-- d'un tableau. Le parseur @inner@ parse le contenu entre [ et ]. Ignore les
 -- espaces internes entourant ce parseur.
 subscript :: CodaParser a -> CodaParser a
 subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner
@@ -345,5 +384,5 @@ spaces1 = space >> spaces
 -- | Enregistre la variable dans la table des symboles.
 registerVar :: CVar -> CodaParser ()
 registerVar var@(CVar _ _ ident _) =
-    modifyState $ \state ->
-        state { psVars = M.insert ident var (psVars state) }
+    modifyState $ \st ->
+        st { psVars = M.insert ident var (psVars st) }
