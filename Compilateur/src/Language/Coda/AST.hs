@@ -85,7 +85,7 @@ data CStmt = CDecl CVarDecl
            | CWhile CExpr CCompoundStmt
     deriving (Show, Eq)
 
-data CExpr = CCall CIdent [CExpr]
+data CExpr = CCall CFun [CExpr]
            | CVariable CVarExpr
            | CLitteral CLitteral
            | CBinOp CBinOp CExpr CExpr
