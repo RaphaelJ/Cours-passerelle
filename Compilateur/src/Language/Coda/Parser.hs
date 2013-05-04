@@ -186,7 +186,7 @@ compoundStmt retType = do
                 -- car on a pu parser une nouvelle instruction.
                 -- Sinon, on continue.
                 if precRet then fail "Unreachable statement."
-                           else first (x :) <$> goCompound ret)
+                           else first (x:) <$> goCompound ret)
         <|> return ([], precRet)
 
 -- | Parse une instruction. Le type donné en argument donne le type de retour de
@@ -283,22 +283,23 @@ call :: (CFun, [CExpr])
 call = do
     ident <- identifer <* spaces
     args  <- between (char '(' >> spaces) (spaces >> char ')')
-                        (expr `sepBy` (spaces >> char ',' >> spaces))
+                     (expr `sepBy` (spaces >> char ',' >> spaces))
 
     funsSt <- psFuns <$> getState
     case ident `M.lookup` funsSt of
-        Just f@(CFun t _ fArgs _)
+        Just f@(CFun t _ (CArguments fArgs) _)
             | n <- length args, n' <- length fArgs, n /= n' ->
-                fail "Trying to apply %d argument(s) to a function of \
-                        \%d argument(s)." n n'
-            
-            exprs <- checkArgsCall ident fArgs args
-            (CCall f 
+                fail $ printf "Trying to apply %d argument(s) to a function \
+                              \which has %d argument(s)." n n'
+            | otherwise -> do
+                exprs <- checkArgs ident fArgs args
+                (CCall f 
         Nothing -> fail "Unknown function identifer : `%s`" (T.unpack ident)
 
   where
-    checkArgs ident i (fArgs =
+    checkArgs ident i (fArg:fArgs) (arg:args) =
         
+
     getArgType (CVarArgument (CVar t _)) = t
     getArgType (CAnonArgument t)         = t
     
