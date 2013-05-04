@@ -30,8 +30,8 @@ parser :: CodaParser AST
 parser =
     spaces *> many (declaration <* spaces) <* eof
   where
-    declaration = try (CTopLevelVar <$> variableDecl)
-              <|>     (CTopLevelFun <$> functionDecl)
+    declaration =     try (CTopLevelVar <$> variableDecl)
+                  <|>     (CTopLevelFun <$> functionDecl)
 
 -- | Exécute le parseur sur un flux de texte.
 parse :: SourceName -> TL.Text -> Either ParseError AST
@@ -43,9 +43,8 @@ parse = let emptyState = ParserState M.empty M.empty
 variableDecl :: CodaParser CVarDecl
 variableDecl = do
     eType                 <- typeArraySpecInfer <* spaces1
-
     ident                 <- identifier <* spaces
-    checkIdentifer ident
+    checkVarIdent ident
 
     mExpr                 <- optionMaybe (char '=' *> spaces *> expr)
 
@@ -56,7 +55,7 @@ variableDecl = do
     return decl
   where
     -- Vérifie que la variable n'a pas déjà été déclarée.
-    checkIdentifer ident = do
+    checkVarIdent ident = do
         varsSt <- psVars <$> getState
         when (ident `M.member` varsSt) $
             fail $ printf "Variable identifer `%s` is already defined."
@@ -97,8 +96,7 @@ functionDecl =
 
     (    (do def <- CFun tRet ident tArgs <$> compoundStmt
              registerFun def
- 
- return def)
+             return def)
      <|> (char ';' >> return decl))
   where
     args = between (char '(' >> spaces) (spaces >> char ')')
@@ -110,13 +108,10 @@ functionDecl =
         t       <- argType
 
         mIdent  <- optionMaybe (try $ spaces1 *> identifier)
-        case mIdent of
-            Just ident -> do
-                let var = CVar t ident
-                registerVar var
-                return $ CVarArgument var
-            Nothing    ->
-                return $ CAnonArgument t
+        case mIdent of Just ident -> do let var = CVar t ident
+                                        registerVar var
+                                        return $ CVarArgument var
+                       Nothing    -> return $ CAnonArgument t
 
     -- Parse le type de l'argument et une éventuelle dimension implicite
     -- supplémentaire.
@@ -161,19 +156,22 @@ typeSpec :: CodaParser CType
 typeSpec =     (string "int"  >> return CInt)
            <|> (string "bool" >> return CBool)
 
-typeArraySpec :: CodaParser CTypeArray
-typeArraySpec =
-    CTypeArray <$> typeQual <* spaces1 <*> typeSpec <*> typeSubscripts
-
 -- | Parse un type explicite ou @auto@ avec son qualifieur.
-typeArraySpecInfer :: CodaParser (Either CTypeArray CQual)
-typeArraySpecInfer = do
+varType :: CodaParser (Either CTypeArray CQual)
+varType = do
     qual <- typeQual <* spaces1
     (    (Left <$> CTypeArray qual <$> typeSpec <*> typeSubscripts)
      <|> (string "auto" >> return (Right qual)))
 
-typeSubscripts :: CodaParser (Maybe (Int, [Int]))
-typeSubscripts = many $ try $ spaces >> subscript integerLitteral
+typeArgSpec :: CodaParser CTypeArray
+typeArgSpec 
+
+typeSubscripts :: CodaParser (CDims, [Int])
+typeSubscripts = do
+    sizes <- many $ subscript integerLitteral <* spaces
+    let dims = case sizes of []     -> CScalar
+                             (_:ss) -> CArray (length sizes) ss
+    return (dims, sizes)
 
 -- Instructions ----------------------------------------------------------------
 
