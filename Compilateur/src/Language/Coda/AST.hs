@@ -29,7 +29,7 @@ data CVar = CVar CTypeArray CIdent
 
 -- | Contient la déclaration d\'une variable, les tailles des n dimensions de la
 -- variable et une éventuelle valeur initiale.
-data CVarDecl = CVarDecl CVar [Int] (Maybe CExpr)
+data CVarDecl = CVarDecl CVar [CInt] (Maybe CExpr)
     deriving (Show, Eq)
 
 data CFun = CFun (Maybe CType) CIdent CArguments (Maybe CCompoundStmt)
@@ -45,7 +45,7 @@ data CTypeArray = CTypeArray CQual CType CDims
 -- | Si la variable est un tableau, contient le nombre de dimensions ainsi que
 -- les tailles des n-1 dernières dimensions du tableau (la taille de la première
 -- dimension est inutile pour calculer le padding d\'une cellule).
-data CDims = CScalar | CArray Int [Int]
+data CDims = CScalar | CArray Int [CInt]
     deriving (Show)
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
