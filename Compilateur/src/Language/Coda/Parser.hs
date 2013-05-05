@@ -196,12 +196,12 @@ stmt :: Maybe CType -> CodaParser (CStmt, Bool)
 stmt retType =
         try returnStmt
     <|> try ifStmt
-    <|> try ((, False) <$> CWhile  <$> (string "while" *> spaces *> guard)
-                                   <*  spaces
-                                   <*> compoundStmt)
+    <|> try ((, False) <$> CWhile <$> (string "while" *> spaces *> guard)
+                                  <*  spaces
+                                  <*> compoundStmt)
     <|> try assign
-    <|> try ((, False) <$> CDecl   <$> variableDecl)
-    <|> try ((, False) <$> CExpr   <$> expr <* tailingSep)
+    <|> try ((, False) <$> CDecl  <$> variableDecl)
+    <|> try ((, False) <$> CExpr  <$> expr <* tailingSep)
   where
     returnStmt = do
         string "return"
@@ -254,7 +254,7 @@ stmt retType =
 -- littérale ou un identifiant.
 
 expr, andExpr, comparisonExpr, numericExpr, multiplicativeExpr, valueExpr
-    :: CodaParser (CExpr, CType)
+    :: CodaParser (CExpr, Maybe CTypeArray)
 expr = binaryExpr CBool CBool [string "||" >> return COr] andExpr
 
 andExpr = binaryExpr CBool CBool [string "&&" >> return CAnd] comparisonExpr
@@ -273,36 +273,47 @@ multiplicativeExpr = binaryExpr CInt CInt [
       char '*' >> return CMult, char '/' >> return CDiv, char '%' >> return CMod
     ] valueExpr
 
-valueExpr =     try (CCall     <$> identifier <* spaces <*> callArgs)
+valueExpr =     try callExpr
             <|> try (CVariable <$> varExpr)
             <|> try (CLitteral <$> litteral)
             <|> try (between (char '(' >> spaces) (spaces >> char ')') expr)
   where
+    callExpr = do
+        let toTypeArray ctype = CTypeArray CQualConst ctype CScalar
+        (fun@(CFun ret _ _ _), args) <- call
+        return (CCall fun args, toTypeArray <$> ret)
 
+    varExpr = 
+
+-- | Parse un appel de fonction.
 call :: (CFun, [CExpr])
 call = do
     ident <- identifer <* spaces
     args  <- between (char '(' >> spaces) (spaces >> char ')')
-                        (expr `sepBy` (spaces >> char ',' >> spaces))
+                     (expr `sepBy` (spaces >> char ',' >> spaces))
 
     funsSt <- psFuns <$> getState
     case ident `M.lookup` funsSt of
-        Just f@(CFun t _ fArgs _)
+        Just fun@(CFun t _ fArgs _)
             | n <- length args, n' <- length fArgs, n /= n' ->
-                fail "Trying to apply %d argument(s) to a function of \
-                        \%d argument(s)." n n'
-            
-            exprs <- checkArgsCall ident fArgs args
-            (CCall f 
-        Nothing -> fail "Unknown function identifer : `%s`" (T.unpack ident)
-
+                fail $ printf "Trying to apply %d argument(s) to a function of \
+                              \%d argument(s)." n n'
+            | otherwise -> (fun,) <$> callArgs ident 1 fArgs args
+        Nothing -> fail $ printf "Unknown function identifer : `%s`" 
+                                 (T.unpack ident)
   where
-    checkArgs ident i (fArgs =
-        
+    -- Vérifie le type de chaque expression assignées aux arguments de la 
+    -- fonction.
+    callArgs _     _ []           []         = return []
+    callArgs ident i (fArg:fArgs) ((eArg, tArg):args)
+        | tFunArg <- getArgType fArg, tFunArg /= tArg =
+            fail $ printf "Argument #%d of the call to the function `%s` is of \
+                          \type `%s` whereas the given expression is of type \
+                          \`%s`."  i (T.unpack ident) (show tFunArg) (show tArg)
+        | otherwise = (eArg:) <$> checkArgs ident (i+1) fArgs args
+
     getArgType (CVarArgument (CVar t _)) = t
     getArgType (CAnonArgument t)         = t
-    
-        
 
 varExpr :: CodaParser (CVarExpr, (CQual, CType))
 varExpr = do
@@ -351,14 +362,16 @@ identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
 
 -- Utilitaires -----------------------------------------------------------------
 
--- | Parse un ensemble d'opérateurs binaires dotés d'une priorité identique.
+-- | Parse un ensemble d\'opérateurs binaires dont la priorité, le type des
+-- opérandes et le type de retour sont identiques.
 -- Le premier et le second argument donnent respectivement le type des
--- opérantes et le type de retour de l'application des opérateurs.
+-- opérantes et le type de retour de l\'application des opérateurs.
 -- Chaque opérateur est fourni avec le parseur de son symbole. Le dernier
--- argument parse les opérantes de l'opérateur (càd les l'expression ayant une
+-- argument parse les opérantes de l\'opérateur (càd les l\'expression ayant une
 -- priorité plus importante). Effectue une association sur la gauche.
-binaryExpr :: CType -> CType -> [CodaParser CBinOp] -> CodaParser (CExpr, CType)
-           -> (CodaParser CExpr, CType)
+binaryExpr :: CType -> CType -> [CodaParser CBinOp]
+           -> CodaParser (CExpr, Maybe CTypeArray)
+           -> CodaParser (CExpr, Maybe CTypeArray)
 binaryExpr tInner tRet ops inner =
     -- Parse l'expression de gauche "jusqu'au plus loin possible".
     inner >>= go
@@ -373,19 +386,25 @@ binaryExpr tInner tRet ops inner =
 
     tryOperator (eLeft, tLeft) p = do
         op               <- p
-        when (tLeft /= tInner) $ opTypeError tLeft "left"
+        checkType "left" tLeft
         (eRight, tRight) <- spaces *> inner
-        when (tRight /= tInner) $ opTypeError tRight "right"
+        checkType "right" tRight
 
         -- Parse une occurrence suivante de ces mêmes opérateurs.
-        go (CBinOp op eLeft eRight)
+        go (CBinOp op eLeft eRight, CTypeArray CQualConst tInner CScalar)
 
-    opTypeError tOp side =
-        fail $ printf "Trying to a apply an expression of type `%s` to the %s \
-                      \argument of a `%s` operator."
-                      (show tOp) side (show tInner)
+    checkType side Nothing                             =
+        fail $ printf "Trying to a apply a void expression to the %s argument \
+                      \of a `%s` operator." side (show tInner)
+    checkType side (Just (CTypeArray _ _ (CArray _ _)) =
+        fail $ printf "Trying to a apply an array expression to the %s argument\
+                      \ of a `%s` operator." side (show tInner)
+    checkType side (Just (CTypeArray _ prim CScalar) | prim /= tInner =
+        fail $ printf "Trying to a apply a `%s` expression to the %s argument \
+                      \of a `%s` operator." (show prim) side (show tInner)
+                                                     | otherwise      = empty
 
--- | Vérifie que la variable n'a pas déjà été déclarée.
+-- | Vérifie que la variable n\'a pas déjà été déclarée.
 checkVarIdent :: CIdent -> CodaParser ()
 checkVarIdent ident = do
     varsSt <- psVars <$> getState
@@ -398,13 +417,13 @@ registerVar :: CVar -> CodaParser ()
 registerVar var@(CVar _ _ ident _) =
     modifyState $ \st -> st { psVars = M.insert ident var (psVars st) }
 
--- | Parse une expression de définition ou de déréférencement d'une dimension
--- d'un tableau. Le parseur @inner@ parse le contenu entre [ et ]. Ignore les
+-- | Parse une expression de définition ou de déréférencement d\'une dimension
+-- d\'un tableau. Le parseur @inner@ parse le contenu entre [ et ]. Ignore les
 -- espaces internes entourant ce parseur.
 subscript :: CodaParser a -> CodaParser a
 subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner
 
--- | Parse 1 à N caractères d'espacement.
+-- | Parse 1 à N caractères d\'espacement.
 spaces1 :: CodaParser ()
 spaces1 = space >> spaces
 
