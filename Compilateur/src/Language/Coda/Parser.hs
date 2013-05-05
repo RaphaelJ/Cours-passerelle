@@ -12,8 +12,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Text.Parsec (
       SourceName, ParseError, (<?>), alphaNum, between, char, digit, eof
-    , getState, letter, many, many1, modifyState, optionMaybe, runParser, sepBy
-    , space, spaces, string, try
+    , getState, letter, many, many1, modifyState, optionMaybe, putState
+    , runParser, sepBy, space, spaces, string, try
     )
 import Text.Parsec.Text.Lazy (GenParser)
 
@@ -42,13 +42,13 @@ parse = let emptyState = ParserState M.empty M.empty
 
 variableDecl :: CodaParser CVarDecl
 variableDecl = do
-    eType                 <- varType    <* spaces1
-    ident                 <- identifier <* spaces
+    eType                   <- varType    <* spaces1
+    ident                   <- identifier <* spaces
     checkVarIdent ident
 
-    mExpr                 <- optionMaybe (char '=' *> spaces *> expr)
+    mExpr                   <- optionMaybe (char '=' *> spaces *> expr)
 
-    decl@(CVarDecl var _) <- getVar eType ident mExpr
+    decl@(CVarDecl var _ _) <- getVar eType ident mExpr
     registerVar var
 
     tailingSep
@@ -67,21 +67,29 @@ variableDecl = do
         return $ CVarDecl (CVar t ident) ss Nothing
     getVar (Left (CTypeArray _ _ (CArray _ _), _))     ident (Just _)          =
         fail "Arrays can't be assigned."
-    getVar (Left (t@(CTypeArray _ prim CScalar), ss))  ident (Just (e, tExpr))
-        | prim == tExpr = return $ CVarDecl (CVar t ident) ss (Just e)
-        | otherwise     =
-            fail $ printf "Trying to assign an expression of type `%s` to a \
-                          \declaration of type `%s`." (show tExpr) (show prim)
+    getVar (Left (t@(CTypeArray _ prim CScalar), ss))  ident (Just (e, tExpr)) =
+        case tExpr of
+            Nothing ->
+                fail "Trying to assign a void expression to a variable."
+            Just (CTypeArray _ _     (CArray _ _)) ->
+                fail "Trying to assign an array expression to a scalar variable."
+            Just (CTypeArray _ prim' CScalar) | prim /= prim' ->
+                fail $ printf "Trying to assign an expression of type `%s` to a\
+                              \ declaration of type `%s`."
+                              (show prim') (show prim)
+                                              | otherwise     ->
+                return $ CVarDecl (CVar t ident) ss (Just e)
+
     -- Variables au type inféré.
     getVar (Right qual)                                ident (Just (e, tExpr)) =
         let t = CTypeArray qual tExpr CScalar
         in return $ CVarDecl (CVar t ident) [] (Just e)
 
 functionDecl :: CodaParser CFun
-functionDecl =
+functionDecl = do
     tRet  <- optionMaybe $ try $ typeSpec <* spaces1
     ident <- identifier <* spaces
-    tArgs <- args      <* spaces
+    tArgs <- args       <* spaces
 
     -- Enregistre la déclaration de la fonction avant la définition pour
     -- permettre les appels récursifs.
@@ -107,7 +115,7 @@ functionDecl =
                                         return $ CVarArgument var
                        Nothing    -> return $ CAnonArgument t
 
-    registerFun fun@(CFun tRet ident args mStmts) =
+    registerFun fun@(CFun tRet ident args mStmts) = do
         st <- psFuns <$> getState
         case ident `M.lookup` st of
             Just (CFun tRet' _ args' mStmts') | tRet' /= tRet ->
@@ -124,7 +132,7 @@ functionDecl =
                     (Just _ , Nothing) -> registerFun' fun
             Nothing -> registerFun' fun
 
-    registerFun' fun =
+    registerFun' fun@(CFun _ ident _ _) =
         modifyState $ \st -> st { psFuns = M.insert ident fun (psFuns st) }
 
 -- Types -----------------------------------------------------------------------
@@ -156,7 +164,7 @@ argType = do
     (dims, sizes) <- typeDims
 
     -- Rajoute l'éventuelle première dimension implicite.
-    let dims' | Just _ <- dims = CDims (length sizes + 1) sizes
+    let dims' | Just _ <- dims = CArray (length sizes + 1) sizes
               | otherwise      = dims
     return $ t dims'
 
@@ -235,7 +243,7 @@ stmt retType =
 
         case qual of
             CQualConst -> fail "Can't assign a constant."
-            CQualFree | left /= right ->
+            CQualFree | tLeft /= tRight ->
                 fail $ printf "Trying to assign an expression of type `%s` to a\
                               \ variable of type `%s`." 
                               (show tRight) (show tLeft)
@@ -273,76 +281,78 @@ multiplicativeExpr = binaryExpr CInt CInt [
       char '*' >> return CMult, char '/' >> return CDiv, char '%' >> return CMod
     ] valueExpr
 
-valueExpr =     try callExpr
-            <|> try (CVariable <$> varExpr)
-            <|> try (CLitteral <$> litteral)
-            <|> try (between (char '(' >> spaces) (spaces >> char ')') expr)
+valueExpr =     callExpr
+            <|> (CVariable <$> varExpr)
+            <|> (CLitteral <$> litteral)
+            <|> (between (char '(' >> spaces) (spaces >> char ')') expr)
   where
     callExpr = do
         let toTypeArray ctype = CTypeArray CQualConst ctype CScalar
         (fun@(CFun ret _ _ _), args) <- call
         return (CCall fun args, toTypeArray <$> ret)
 
-    varExpr = 
-
 -- | Parse un appel de fonction.
-call :: (CFun, [CExpr])
+call :: CodaParser (CFun, [CExpr])
 call = do
-    ident <- identifer <* spaces
-    args  <- between (char '(' >> spaces) (spaces >> char ')')
-                     (expr `sepBy` (spaces >> char ',' >> spaces))
+    (ident, args) <- try $
+        (,) <$> identifier <* spaces
+            <*> between (char '(' >> spaces) (spaces >> char ')')
+                        (expr `sepBy` (spaces >> char ',' >> spaces))
 
-    funsSt <- psFuns <$> getState
-    case ident `M.lookup` funsSt of
-        Just fun@(CFun t _ fArgs _)
-            | n <- length args, n' <- length fArgs, n /= n' ->
-                fail $ printf "Trying to apply %d argument(s) to a function of \
-                              \%d argument(s)." n n'
-            | otherwise -> (fun,) <$> callArgs ident 1 fArgs args
-        Nothing -> fail $ printf "Unknown function identifer : `%s`" 
-                                 (T.unpack ident)
+    fun@(CFun t _ fArgs _) <- getFun ident
+    let n  = length args
+        n' = length fArgs
+    if n /= n' then fail $ printf "Trying to apply %d argument(s) to a function\
+                                  \ of %d argument(s)." n n'
+               else (fun,) <$> getArgsExprs ident 1 fArgs args
   where
-    -- Vérifie le type de chaque expression assignées aux arguments de la 
+    -- Recherche dans la table des symboles la référence à la fonction.
+    getFun ident = do
+        funsSt <- psFuns <$> getState
+        case ident `M.lookup` funsSt of
+            Just fun -> return fun
+            Nothing  -> fail $ printf "Unknown function identifer : `%s`" 
+                                      (T.unpack ident)
+
+    -- Vérifie le type de chaque expression assignée aux arguments de la
     -- fonction.
-    callArgs _     _ []           []         = return []
-    callArgs ident i (fArg:fArgs) ((eArg, tArg):args)
+    getArgsExprs _     _ []           []         = return []
+    getArgsExprs ident i (fArg:fArgs) ((eArg, tArg):args)
         | tFunArg <- getArgType fArg, tFunArg /= tArg =
             fail $ printf "Argument #%d of the call to the function `%s` is of \
                           \type `%s` whereas the given expression is of type \
                           \`%s`."  i (T.unpack ident) (show tFunArg) (show tArg)
-        | otherwise = (eArg:) <$> checkArgs ident (i+1) fArgs args
+        | otherwise = (eArg:) <$> getArgsExprs ident (i+1) fArgs args
 
-    getArgType (CVarArgument (CVar t _)) = t
-    getArgType (CAnonArgument t)         = t
-
-varExpr :: CodaParser (CVarExpr, (CQual, CType))
+varExpr :: CodaParser (CVarExpr, CTypeArray)
 varExpr = do
-    var <- identifier >>= getVar
-    CVarExpr var <$> getSubs var
+    var@(CVar _ (CTypeArray qual prim dims) _)  <- identifier >>= getVar
+    subs                                        <- spaces *> getSubsExprs dims
+    return $ CVarExpr var subs
   where
     -- Recherche dans la table des symboles la référence à la variable.
     getVar ident = do
         varsSt <- psVars <$> getState
         case ident `M.lookup` varsSt of
             Just var -> return var
-            Nothing  ->
-                fail $ printf "Unknown identifier : `%s`." (T.unpack ident)
+            Nothing  -> fail $ printf "Unknown variable identifier : `%s`."
+                                      (T.unpack ident)
 
-    getSubs (CVar _ (CTypeArray _ dims) _) = do
-        subs <- many $ try $ spaces >> subscript expr
+    getSubsExprs dims = do
+        subs <- spaces *> (subscript expr `sepBy` spaces)
         case (dims, subs) of
-            -- Variable scalaire
-            (Nothing, []   ) -> return []
-            (Nothing, (_:_)) ->
-                fail "Trying to subscript a scalar variable."
-            -- Tableau
-            (Just (n, _), ss)
+            (CScalar   , []   ) -> return []
+            (CScalar   , (_:_)) -> fail "Trying to subscript a scalar variable."
+            (CArray n _, ss) 
                 | n' <- length ss, n' /= n ->
-                    fail $ printf "Dereferencing `%d` dimension(s) of a `%d`
+                    fail $ printf "Dereferencing `%d` dimension(s) of a `%d` \
                                   \dimension(s) array." n' n
-                | any ((/= CInt) . snd) ss ->
-                    fail "Subscripts must be integer expressions."
-                | otherwise -> return $ map fst ss
+                | all isValidSub ss -> return $ map fst ss
+                | otherwise ->
+                    fail "Subscripts must be scalar integer expressions."
+
+    isValidSub (_, CTypeArray _ CBool CScalar) = True
+    isValidSub _                               = False
 
 litteral :: CodaParser (CLitteral, CType)
 litteral =     (((, CInt)  . CLitteralInt)  <$> integerLitteral)
@@ -386,20 +396,20 @@ binaryExpr tInner tRet ops inner =
 
     tryOperator (eLeft, tLeft) p = do
         op               <- p
-        checkType "left" tLeft
+        checkInnerType "left" tLeft
         (eRight, tRight) <- spaces *> inner
-        checkType "right" tRight
+        checkInnerType "right" tRight
 
         -- Parse une occurrence suivante de ces mêmes opérateurs.
         go (CBinOp op eLeft eRight, CTypeArray CQualConst tInner CScalar)
 
-    checkType side Nothing                             =
+    checkInnerType side Nothing                              =
         fail $ printf "Trying to a apply a void expression to the %s argument \
                       \of a `%s` operator." side (show tInner)
-    checkType side (Just (CTypeArray _ _ (CArray _ _)) =
+    checkInnerType side (Just (CTypeArray _ _ (CArray _ _))) =
         fail $ printf "Trying to a apply an array expression to the %s argument\
                       \ of a `%s` operator." side (show tInner)
-    checkType side (Just (CTypeArray _ prim CScalar) | prim /= tInner =
+    checkInnerType side (Just (CTypeArray _ prim CScalar)) | prim /= tInner =
         fail $ printf "Trying to a apply a `%s` expression to the %s argument \
                       \of a `%s` operator." (show prim) side (show tInner)
                                                      | otherwise      = empty

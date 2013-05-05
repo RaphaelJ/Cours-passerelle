@@ -12,6 +12,7 @@
 module Language.Coda.AST where
 
 import Data.Int (Int64)
+import Data.Function (on)
 import Data.Text (Text)
 
 type AST = [CTopLevel]
@@ -56,6 +57,12 @@ newtype CArguments = CArguments [CArgument]
 data CArgument = CVarArgument CVar | CAnonArgument CTypeArray
     deriving (Show)
 
+getArgType :: CArgument -> CTypeArray
+getArgType (CVarArgument (CVar t _)) = t
+getArgType (CAnonArgument t)         = t
+
+-- Instances utilisées pour comparer la stricte égalité entre deux types.
+
 instance Eq CDims where
     CScalar       == CScalar         = True
     CArray n dims == CArray n' dims' = n == n' && take n dims == take n' dims'
@@ -68,10 +75,7 @@ instance Eq CArguments where
     _                   == _                   = False
 
 instance Eq CArgument where
-    a == b = getType a == getType b
-  where
-    getType (CVarArgument (CVar t _)) = t
-    getType (CAnonArgument t)         = t
+    (==) = (==) `on` getArgType
 
 -- Instructions et expressions -------------------------------------------------
 
