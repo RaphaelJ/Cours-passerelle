@@ -186,7 +186,7 @@ compoundStmt retType = do
                 -- car on a pu parser une nouvelle instruction.
                 -- Sinon, on continue.
                 if precRet then fail "Unreachable statement."
-                           else first (x :) <$> goCompound ret)
+                           else first (x:) <$> goCompound ret)
         <|> return ([], precRet)
 
 -- | Parse une instruction. Le type donné en argument donne le type de retour de
