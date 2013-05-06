@@ -96,25 +96,49 @@ data LLVMValue = LLVMValueIdent LLVMIdent | LLVMValueLitteral LLVMLitteral
 
 newtype LLVMOp = LLVMOp Builder
 
-load :: CType -> LLVMIdent a -> LLVMIdent
-load t v = add t (LLVMLitteral 0) (LLVMLitteral v)
-
-add :: CType -> LLVMIdent -> LLVMIdent -> CCodeGen LLVMIdent
+add :: CType -> LLVMValue -> LLVMValue -> CCodeGen LLVMIdent
 add t a b = LLVMOp $ "add" <> " " <> emit t <> " " <> emit a <> " " <> emit b
 
-ret :: Maybe (CType, LLVMIdent) -> LLVMIdent
+ret :: Maybe (CType, LLVMIdent) -> LLVMIdent -> CCodeGen ()
 
 <- add (LLVMLitteral 10) (LLVMLitteral 20)
 
 <- assign $ load 10
 
 ret :: CType -> LLVMIdent -> LLVMOpCode
+ret 
+
+cExpr :: CExpr -> CCodeGen LLVMIdent
+cExpr (CCall f args)   = cCall f args
+cExpr (CVariable var)  = cVariable var
+cExpr (CLitteral litt) = cLitteral litt
+cExpr (CBinOp op left right) =
+    left'  <- cExpr left
+    right' <- cExpr right
+    case op of
+        CAdd -> add CInt left' right'
+        CAdd -> add CInt left' right'
+
+-- | Contient un pointeur vers la variable issue d\'une expression.
+newtype LLVMVariable = LLVMVariable LLVMIdent
+
+load :: LLVMVariable -> CCodeGen LLVMIdent
+
+cVarExpr :: CVarExpr -> CCodeGen LLVMVariable
+cVarExpr (CVarExpr (CVar (CTypeArray _ CType CScalar)          ident) _)    =
+    
+cVarExpr (CVarExpr (CVar (CTypeArray _ CType (CArray _ sizes)) ident) subs) =
+    
+  where
+    padding (size:sizes) (sub:subs) =
+        
+    padding []     ss      ~[sub]     =
+        
 
 cLitteral :: CLitteral -> CCodeGen LLVMIdent
 cLitteral (CLitteralInt i)      = load CInt  i
 cLitteral (CLitteralBool True)  = load CBool 1
 cLitteral (CLitteralBool False) = load CBool 1
-
 
 -- Utilitaires -----------------------------------------------------------------
 
