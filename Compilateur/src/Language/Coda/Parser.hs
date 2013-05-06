@@ -2,7 +2,7 @@
 -- | Définit un parser Parsec capable de gérérer un 'AST' à partir d\'un flux de
 -- caractères (Lazy Text). Le parseur vérifie la cohérence de l\'arbre
 -- syntaxique simultanément avec le parsage.
-module Language.Coda.Parser (CodaParser, parser, parse) where
+module Language.Coda.Parser (CParser, parse, parser) where
 
 import Control.Arrow ((***), first)
 import Control.Applicative ((<$>), (<*>), (<|>), (<*), (*>), empty)
@@ -25,23 +25,23 @@ data ParserState = ParserState {
       psVars :: M.Map CIdent CVar, psFuns :: M.Map CIdent CFun
     }
 
-type CodaParser = GenParser ParserState
-
-parser :: CodaParser AST
-parser =
-    spaces *> many (declaration <* spaces) <* eof
-  where
-    declaration =     try (CTopLevelVar <$> variableDecl)
-                  <|>     (CTopLevelFun <$> functionDecl)
+type CParser = GenParser ParserState
 
 -- | Exécute le parseur sur un flux de texte.
 parse :: SourceName -> TL.Text -> Either ParseError AST
 parse = let emptyState = ParserState M.empty M.empty
         in runParser parser emptyState
 
+parser :: CParser AST
+parser =
+    spaces *> many (declaration <* spaces) <* eof
+  where
+    declaration =     try (CTopLevelVar <$> variableDecl)
+                  <|>     (CTopLevelFun <$> functionDecl)
+
 -- Déclarations ----------------------------------------------------------------
 
-variableDecl :: CodaParser CVarDecl
+variableDecl :: CParser CVarDecl
 variableDecl = do
     eType                   <- varType    <* spaces1
     ident                   <- identifier <* spaces
@@ -80,7 +80,7 @@ variableDecl = do
         let t = CTypeArray qual prim' CScalar
         in return $ CVarDecl (CVar t ident) [] (Just e)
 
-functionDecl :: CodaParser CFun
+functionDecl :: CParser CFun
 functionDecl = do
     tRet  <- optionMaybe $ try $ typeSpec <* spaces1
     ident <- identifier <* spaces
@@ -139,17 +139,17 @@ functionDecl = do
 
 -- Types -----------------------------------------------------------------------
 
-typeQual :: CodaParser CQual
+typeQual :: CParser CQual
 typeQual =     (string "const" >> spaces1 >> return CQualConst)
            <|> return CQualFree
 
-typeSpec :: CodaParser CType
+typeSpec :: CParser CType
 typeSpec =     (string "int"  >> return CInt)
            <|> (string "bool" >> return CBool)
 
 -- | Parse un type explicite avec la taille de ses dimensions ou @auto@ avec son
 -- qualifieur.
-varType :: CodaParser (Either (CTypeArray, [CInt]) CQual)
+varType :: CParser (Either (CTypeArray, [CInt]) CQual)
 varType = do
     qual <- typeQual
     (    (do t             <- typeSpec <* spaces
@@ -159,7 +159,7 @@ varType = do
 
 -- | Parse le type de l'argument avec la première dimension éventuellement
 -- implicite (sans taille).
-argType :: CodaParser CTypeArray
+argType :: CParser CTypeArray
 argType = do
     t             <- CTypeArray <$> typeQual <*> typeSpec
     mImplicit     <- optionMaybe $ try $ spaces *> subscript spaces
@@ -171,7 +171,7 @@ argType = do
     return $ t dims'
 
 -- | Parse les définitions des tailles des dimensions d\'un tableau.
-typeDims :: CodaParser (CDims, [CInt])
+typeDims :: CParser (CDims, [CInt])
 typeDims = do
     sizes <- subscript integerLitteral `sepBy` spaces
     let dims = case sizes of []     -> CScalar
@@ -183,7 +183,7 @@ typeDims = do
 -- | Parse un ensemble d\'instructions. Le type donné en argument donne le
 -- type de retour de la fonction. Retourne 'True' si le bloc retourne toujours
 -- une valeur quelque soit le chemin d\'exécution.
-compoundStmt :: Maybe CType -> CodaParser (CCompoundStmt, Bool)
+compoundStmt :: Maybe CType -> CParser (CCompoundStmt, Bool)
 compoundStmt retType = do
     st <- getState -- Sauvegarde l'état des tables de symboles.
     char '{' *> spaces *> goCompound False <* char '{' <* putState st
@@ -202,7 +202,7 @@ compoundStmt retType = do
 -- | Parse une instruction. Le type donné en argument donne le type de retour de
 -- la fonction. Retourne 'True' si l'instruction retourne toujours une valeur
 -- quelque soit le chemin d\'exécution.
-stmt :: Maybe CType -> CodaParser (CStmt, Bool)
+stmt :: Maybe CType -> CParser (CStmt, Bool)
 stmt retType =
         try returnStmt
     <|> try ifStmt
@@ -273,7 +273,7 @@ stmt retType =
 
 -- | Parse le signe d\'assignation (=) et l\'expression qui se trouve à sa
 -- droite. Vérifie que l\'expression retourne un scalaire.
-rightAssignExpr :: CodaParser (CExpr, CType)
+rightAssignExpr :: CParser (CExpr, CType)
 rightAssignExpr = do
     (e, tExpr) <- char '=' *> spaces *> expr
     case tExpr of
@@ -289,7 +289,7 @@ rightAssignExpr = do
 -- littérale ou un identifiant.
 
 expr, andExpr, comparisonExpr, numericExpr, multiplicativeExpr, valueExpr
-    :: CodaParser (CExpr, Maybe CTypeArray)
+    :: CParser (CExpr, Maybe CTypeArray)
 expr = binaryExpr CBool CBool [string "||" >> return COr] andExpr
 
 andExpr = binaryExpr CBool CBool [string "&&" >> return CAnd] comparisonExpr
@@ -320,7 +320,7 @@ valueExpr =     callExpr
     toTypeArray ctype = CTypeArray CQualConst ctype CScalar
 
 -- | Parse un appel de fonction.
-call :: CodaParser (CFun, [CExpr])
+call :: CParser (CFun, [CExpr])
 call = do
     (ident, args) <- try $
         (,) <$> identifier <* spaces
@@ -355,7 +355,7 @@ call = do
         | otherwise = (eArg:) <$> getArgsExprs ident (i + 1 :: Int) fArgs args
     getArgsExprs _     _ ~[]          ~[]                      = return []
 
-varExpr :: CodaParser (CVarExpr, CTypeArray)
+varExpr :: CParser (CVarExpr, CTypeArray)
 varExpr = do
     var@(CVar t@(CTypeArray _ _ dims) _) <- identifier >>= getVar
     subs                                 <- spaces *> getSubsExprs dims
@@ -385,19 +385,19 @@ varExpr = do
     isValidSub (_, Just (CTypeArray _ CBool CScalar)) = True
     isValidSub _                                      = False
 
-litteral :: CodaParser (CLitteral, CType)
+litteral :: CParser (CLitteral, CType)
 litteral =     (((, CInt)  . CLitteralInt)  <$> integerLitteral)
            <|> (((, CBool) . CLitteralBool) <$> boolLitteral)
 
-integerLitteral :: CodaParser CInt
+integerLitteral :: CParser CInt
 integerLitteral = read <$> many1 digit
                        <?> "integer litteral"
 
-boolLitteral :: CodaParser CBool
+boolLitteral :: CParser CBool
 boolLitteral =     (string "true"  >> return True)
                <|> (string "false" >> return False)
 
-identifier :: CodaParser T.Text
+identifier :: CParser T.Text
 identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
              <?> "identifier"
 
@@ -410,9 +410,9 @@ identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
 -- Chaque opérateur est fourni avec le parseur de son symbole. Le dernier
 -- argument parse les opérantes de l\'opérateur (càd les l\'expression ayant une
 -- priorité plus importante). Effectue une association sur la gauche.
-binaryExpr :: CType -> CType -> [CodaParser CBinOp]
-           -> CodaParser (CExpr, Maybe CTypeArray)
-           -> CodaParser (CExpr, Maybe CTypeArray)
+binaryExpr :: CType -> CType -> [CParser CBinOp]
+           -> CParser (CExpr, Maybe CTypeArray)
+           -> CParser (CExpr, Maybe CTypeArray)
 binaryExpr tInner tRet ops inner =
     -- Parse l'expression de gauche "jusqu'au plus loin possible".
     inner >>= go
@@ -447,7 +447,7 @@ binaryExpr tInner tRet ops inner =
         return ()
 
 -- | Vérifie que la variable n\'a pas déjà été déclarée.
-checkVarIdent :: CIdent -> CodaParser ()
+checkVarIdent :: CIdent -> CParser ()
 checkVarIdent ident = do
     varsSt <- psVars <$> getState
     when (ident `M.member` varsSt) $
@@ -455,20 +455,20 @@ checkVarIdent ident = do
                       (T.unpack ident)
 
 -- | Enregistre la variable dans la table des symboles.
-registerVar :: CVar -> CodaParser ()
+registerVar :: CVar -> CParser ()
 registerVar var@(CVar _ ident) =
     modifyState $ \st -> st { psVars = M.insert ident var (psVars st) }
 
 -- | Parse une expression de définition ou de déréférencement d\'une dimension
 -- d\'un tableau. Le parseur @inner@ parse le contenu entre [ et ]. Ignore les
 -- espaces internes entourant ce parseur.
-subscript :: CodaParser a -> CodaParser a
+subscript :: CParser a -> CParser a
 subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner
 
 -- | Parse 1 à N caractères d\'espacement.
-spaces1 :: CodaParser ()
+spaces1 :: CParser ()
 spaces1 = space >> spaces
 
 -- | Parse jusqu\'à la fin d'instruction.
-tailingSep :: CodaParser ()
+tailingSep :: CParser ()
 tailingSep = spaces >> char ';' >> return ()
