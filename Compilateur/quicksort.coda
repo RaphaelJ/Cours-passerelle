@@ -1,4 +1,4 @@
-swap(int[], int, int);
+swap(int[], int, int); # Définition
 
 qsort(int[] v, int left, int right)
 {
@@ -19,7 +19,7 @@ qsort(int[] v, int left, int right)
     }
 }
 
-swap(int[] v, int i, int j)
+#swap(int[] v, int i, int j)
 {
     int tmp = v[i];
     v[i] = v[j];
