@@ -33,52 +33,11 @@ parse = let emptyState = ParserState M.empty M.empty
         in runParser parser emptyState
 
 parser :: CParser AST
-parser =
-    spaces *> many (declaration <* spaces) <* eof
-  where
-    declaration =     try (CTopLevelVar <$> variableDecl)
-                  <|>     (CTopLevelFun <$> functionDecl)
+parser = do
+    spaces >> many (functionDecl <* spaces) >> eof
+    (AST . M.elems . psFuns) <$> getState
 
 -- Déclarations ----------------------------------------------------------------
-
-variableDecl :: CParser CVarDecl
-variableDecl = do
-    eType                   <- varType    <* spaces1
-    ident                   <- identifier <* spaces
-    checkVarIdent ident
-
-    mExpr                   <- optionMaybe rightAssignExpr
-
-    decl@(CVarDecl var _ _) <- getVar eType ident mExpr
-    registerVar var
-
-    tailingSep
-    return decl
-  where
-    -- Retourne la définition de la variable, en vérifiant que celle-ci est
-    -- correctement définie et initialisée.
-
-    -- Variables non initialisées.
-    getVar (Left (CTypeArray CQualConst _ _, _))      _     Nothing           =
-        fail "A constant must be assigned."
-    getVar (Right _)                                  ident Nothing           =
-        fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
-
-    -- Variables au type déclaré explicitement.
-    getVar (Left (t, ss))                             ident Nothing           =
-        return $ CVarDecl (CVar t ident) ss Nothing
-    getVar (Left (CTypeArray _ _ (CArray _ _), _))    _     (Just _)          =
-        fail "Arrays can't be assigned."
-    getVar (Left (t@(CTypeArray _ prim CScalar), ss)) ident (Just (e, prim'))
-        | prim /= prim' =
-            fail $ printf "Trying to assign an expression of type `%s` to a \
-                          \declaration of type `%s`." (show prim') (show prim)
-        | otherwise     = return $ CVarDecl (CVar t ident) ss (Just e)
-
-    -- Variables au type inféré.
-    getVar (Right qual)                               ident (Just (e, prim')) =
-        let t = CTypeArray qual prim' CScalar
-        in return $ CVarDecl (CVar t ident) [] (Just e)
 
 functionDecl :: CParser CFun
 functionDecl = do
@@ -136,6 +95,45 @@ functionDecl = do
 
     registerFun' fun@(CFun _ ident _ _) =
         modifyState $ \st -> st { psFuns = M.insert ident fun (psFuns st) }
+
+variableDecl :: CParser CVarDecl
+variableDecl = do
+    eType                   <- varType    <* spaces1
+    ident                   <- identifier <* spaces
+    checkVarIdent ident
+
+    mExpr                   <- optionMaybe rightAssignExpr
+
+    decl@(CVarDecl var _ _) <- getVar eType ident mExpr
+    registerVar var
+
+    tailingSep
+    return decl
+  where
+    -- Retourne la définition de la variable, en vérifiant que celle-ci est
+    -- correctement définie et initialisée.
+
+    -- Variables non initialisées.
+    getVar (Left (CTypeArray CQualConst _ _, _))      _     Nothing           =
+        fail "A constant must be assigned."
+    getVar (Right _)                                  ident Nothing           =
+        fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
+
+    -- Variables au type déclaré explicitement.
+    getVar (Left (t, ss))                             ident Nothing           =
+        return $ CVarDecl (CVar t ident) ss Nothing
+    getVar (Left (CTypeArray _ _ (CArray _ _), _))    _     (Just _)          =
+        fail "Arrays can't be assigned."
+    getVar (Left (t@(CTypeArray _ prim CScalar), ss)) ident (Just (e, prim'))
+        | prim /= prim' =
+            fail $ printf "Trying to assign an expression of type `%s` to a \
+                          \declaration of type `%s`." (show prim') (show prim)
+        | otherwise     = return $ CVarDecl (CVar t ident) ss (Just e)
+
+    -- Variables au type inféré.
+    getVar (Right qual)                               ident (Just (e, prim')) =
+        let t = CTypeArray qual prim' CScalar
+        in return $ CVarDecl (CVar t ident) [] (Just e)
 
 -- Types -----------------------------------------------------------------------
 

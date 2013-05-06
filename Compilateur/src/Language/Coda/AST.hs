@@ -15,25 +15,18 @@ import Data.Int (Int64)
 import Data.Function (on)
 import Data.Text (Text)
 
-type AST = [CTopLevel]
-
-data CTopLevel = CTopLevelVar CVarDecl | CTopLevelFun CFun
-    deriving (Show, Eq)
+newtype AST = AST [CFun]
+    deriving (Show)
 
 type CIdent = Text
 
 -- Variables et fonctions ------------------------------------------------------
 
-data CVar = CVar CTypeArray CIdent
-    deriving (Show, Eq)
-
--- | Contient la déclaration d\'une variable, les tailles des n dimensions de la
--- variable et une éventuelle valeur initiale.
-data CVarDecl = CVarDecl CVar [CInt] (Maybe CExpr)
-    deriving (Show, Eq)
-
 data CFun = CFun (Maybe CType) CIdent CArguments (Maybe CCompoundStmt)
-    deriving (Show, Eq)
+    deriving (Show)
+
+data CVar = CVar CTypeArray CIdent
+    deriving (Show)
 
 -- Types -----------------------------------------------------------------------
 
@@ -81,30 +74,35 @@ instance Eq CArgument where
 
 type CCompoundStmt = [CStmt]
 
+-- | Contient la déclaration d\'une variable, les tailles des n dimensions de la
+-- variable et une éventuelle valeur initiale.
+data CVarDecl = CVarDecl CVar [CInt] (Maybe CExpr)
+    deriving (Show)
+
 data CStmt = CDecl CVarDecl
            | CAssign CVarExpr CExpr
            | CReturn (Maybe CExpr)
            | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt
-    deriving (Show, Eq)
+    deriving (Show)
 
 data CExpr = CCall CFun [CExpr]
            | CVariable CVarExpr
            | CLitteral CLitteral
            | CBinOp CBinOp CExpr CExpr
-    deriving (Show, Eq)
+    deriving (Show)
 
 data CBinOp = CAnd | COr
             | CEq | CNEq | CLt | CGt | CLtEq | CGtEq
             | CAdd | CSub | CMult | CDiv | CMod
-    deriving (Show, Eq)
+    deriving (Show)
 
 data CVarExpr = CVarExpr CVar [CExpr]
-    deriving (Show, Eq)
+    deriving (Show)
 
 type CBool = Bool
 type CInt  = Int64
 
 data CLitteral = CLitteralInt CInt | CLitteralBool CBool
-    deriving (Show, Eq)
+    deriving (Show)

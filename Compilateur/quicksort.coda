@@ -1,10 +1,10 @@
-swap(int[], int, int); # Déclare la variable avant de la définir.
+swap(int[], int, int); # Déclare la fonction avant de la définir.
 
 qsort(int[] v, int left, int right)
 {
     if (left < right) {
-        int i = left + 1;
-        int last = left;
+        auto i = left + 1;
+        auto last = left;
         while (i <= right) {
             if (v[i] < v[left]) {
                 last = last + 1;
@@ -21,7 +21,7 @@ qsort(int[] v, int left, int right)
 
 swap(int[] v, int i, int j)
 {
-    int tmp = v[i];
+    auto tmp = v[i];
     v[i] = v[j];
     v[j] = v[i];
 }
