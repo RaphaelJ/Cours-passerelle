@@ -74,9 +74,9 @@ instance Eq CArgument where
 
 type CCompoundStmt = [CStmt]
 
--- | Contient la déclaration d\'une variable, les tailles des n dimensions de la
--- variable et une éventuelle valeur initiale.
-data CVarDecl = CVarDecl CVar [CInt] (Maybe CExpr)
+-- | Contient la déclaration d\'une variable, le nombre d'\élements de la 
+-- variable (1 si un scalaire) et une éventuelle valeur initiale.
+data CVarDecl = CVarDecl CVar CInt (Maybe CExpr)
     deriving (Show)
 
 data CStmt = CDecl CVarDecl

@@ -8,7 +8,7 @@ import Data.Monoid ((<>))
 import Control.Monad.Writer (WriterT, tell)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Data.Text.Lazy.Builder (Builder, toLazyText)
+import Data.Text.Lazy.Builder (Builder, fromString, toLazyText)
 
 import Language.Code.AST
 
@@ -17,11 +17,11 @@ type CCodeGen = WriterT TL.Builder (State CCodeGenState)
 
 newtype LLVMIdent = LLVMIdent Int
 
-type CCodeGenState = LLVMIdent
+data CCodeGenState = CCodeGenState {
+      cgsNextIdent :: !Int, cgsVarIdents :: M.Map CIdent LLVMVariable
+    }
 
--- data CCodeGenState = CCodeGenState {
---       cgsNextIdent :: !LLVMIdent, cgs
---     }
+let emptyState = CCodeGenState 1 M.empty
 
 genCode :: AST -> TL.Text
 genCode = TL.unlines . map (TL.takeWhile (/= '#')) . TL.lines
@@ -30,6 +30,7 @@ CCodeGen a ->
 runCCodeGen = 
 
 codeGen :: AST -> CCodeGen ()
+
 
 -- Fonctions -------------------------------------------------------------------
 
@@ -72,14 +73,9 @@ instance Emitable CType where
     emit CInt  = "i64"
     emit CBool = "i1"
 
-class LLVMType a where
-    emitType :: a -> Builder
+instance Emitable LLVMIdent where
+    emit (LLVMIdent i) = "%" <> (fromString $ show i)
 
-instance LLVMType (LLVMIdent CInt) where
-    emitType _ = "i64"
-
-instance LLVMType (LLVMIdent CBool) where
-    emitType _ = "i1"
 
 cTypeArray :: CTypeArray -> Builder
 cTypeArray =
@@ -90,14 +86,10 @@ cArguments
 
 data LLVMIdent = LLVMIdent Int
 
-data LLVMLitteral = 
-
-data LLVMValue = LLVMValueIdent LLVMIdent | LLVMValueLitteral LLVMLitteral
+data LLVMValue = LLVMValueIdent LLVMIdent
+               | LLVMValueInt CInt | LLVMValueBool CBool
 
 newtype LLVMOp = LLVMOp Builder
-
-add :: CType -> LLVMValue -> LLVMValue -> CCodeGen LLVMIdent
-add t a b = LLVMOp $ "add" <> " " <> emit t <> " " <> emit a <> " " <> emit b
 
 ret :: Maybe (CType, LLVMIdent) -> LLVMIdent -> CCodeGen ()
 
@@ -108,44 +100,91 @@ ret :: Maybe (CType, LLVMIdent) -> LLVMIdent -> CCodeGen ()
 ret :: CType -> LLVMIdent -> LLVMOpCode
 ret 
 
-cExpr :: CExpr -> CCodeGen LLVMIdent
+cExpr :: CExpr -> CCodeGen LLVMValue
 cExpr (CCall f args)   = cCall f args
-cExpr (CVariable var)  = cVariable var
+cExpr (CVariable var)  = LLVMValueIdent <$> (cVarExpr var >>= cload)
 cExpr (CLitteral litt) = cLitteral litt
 cExpr (CBinOp op left right) =
-    left'  <- cExpr left
-    right' <- cExpr right
-    case op of
-        CAdd -> add CInt left' right'
-        CAdd -> add CInt left' right'
-
--- | Contient un pointeur vers la variable issue d\'une expression.
-newtype LLVMVariable = LLVMVariable LLVMIdent
-
-load :: LLVMVariable -> CCodeGen LLVMIdent
-
-cVarExpr :: CVarExpr -> CCodeGen LLVMVariable
-cVarExpr (CVarExpr (CVar (CTypeArray _ CType CScalar)          ident) _)    =
-    
-cVarExpr (CVarExpr (CVar (CTypeArray _ CType (CArray _ sizes)) ident) subs) =
-    
+    LLVMValueIdent <$> (instr <*> cExpr left <*> cExpr right)
   where
-    padding (size:sizes) (sub:subs) =
-        
-    padding []     ss      ~[sub]     =
-        
+    instr = case op of CAnd  -> cand
+                       COr   -> cor
+                       CAdd  -> cadd
+                       CSub  -> csub
+                       CMult -> cmult
+                       CDiv  -> cdiv
+                       CMod  -> cmod
 
-cLitteral :: CLitteral -> CCodeGen LLVMIdent
-cLitteral (CLitteralInt i)      = load CInt  i
-cLitteral (CLitteralBool True)  = load CBool 1
-cLitteral (CLitteralBool False) = load CBool 1
+cCall :: CFun -> CExpr -> CCodeGen (Maybe LLVMIdent)
+cCall f args = do
+    assign < "call " <
+    call i32 (i8*, ...)* @printf(i8* @fmt, i32 %val)
+
+-- | Contient un pointeur vers la variable dans un identifiant.
+-- La variable doit être déréférencée ('load') pour être utilisée.
+data LLVMVariable = LLVMVariable CType LLVMIdent
+
+-- | Retourne le pointeur correspondant à l'expression.
+cVarExpr :: CVarExpr -> CCodeGen LLVMVariable
+cVarExpr (CVarExpr (CVar (CTypeArray _ CType dims) ident) subs) = do
+    -- Récupère le pointeur associé à la variable.
+    Just var@(LLVMVariable t ptr) <- (ident `M.lookup`) . cgsVarIdents <$> get
+
+    case dims of
+        CScalar        -> return varPtr
+        CArray _ sizes -> do
+            -- Ajoute l'offset si c'est un tableau.
+            pad  <- padding sizes subs
+            LLVMVariable t <$> cadd pad varPtr
+  where
+    -- Retourne un identifiant qui correspond au résultat du calcul de l'offset.
+    padding (size:sizes') (sub:subs) = do
+        pad' <- padding sizes' subs -- Offset des dimensions plus profondes.
+        pad  <- cExpr sub >>= cmult (LLVMValueInt size)
+        cadd pad' pad
+    padding []            ~[sub]     = cExpr sub
+
+cLitteral :: CLitteral -> CCodeGen LLVMValue
+cLitteral (CLitteralInt i)  = LLVMValueInt  i
+cLitteral (CLitteralBool b) = LLVMValueBool b
 
 -- Utilitaires -----------------------------------------------------------------
 
+-- | Exécute l\'opération et enregistre le résultat dans un nouvel identifiant.
+-- Retourne ce nouvel identifiant.
+assign :: LLVMOp -> CCodeGen LLVMIdent
+assign op = do
+    ident <- newIdent
+    tellLine $ emit ident <> " = " <> emit op
+    return ident
+
+-- | Alloue et retourne un nouvel identifiant.
 newIdent :: CCodeGen LLVMIdent
-newIdent = state $ \i@(LLVMIdent v) -> (i, LLVMIdent (i + 1))
+newIdent = state $ \st@(CCodeGenState i _) ->
+    (LLVMIdent i, st { cgsNextIdent = i + 1 })
 
-assign :: Builder -> 
+-- | Déréférence la variable en chargeant son contenu dans un identifiant.
+cload :: LLVMVariable -> CCodeGen LLVMIdent
+cload (LLVMVariable t ptr) = assign $ "load " <> emit t <> "* " <> emit ptr
 
-tellLine :: T.Text -> CCodeGen ()
-tellLine = tell . (`snoc` '\n')
+-- | Enregistre une valeur dans une variable.
+cstore :: LLVMVariable -> LLVMValue -> CCodeGen ()
+cstore (LLVMVariable t ptr) val =
+    let t' = emit t
+    in "store " <> t' <> " " <> emit val <> ", " <> t' <> "* " <> emit ptr
+
+cand, cor, cadd, csub, cmult, cdiv, cmod ::
+    LLVMValue -> LLVMValue -> CCodeGen LLVMIdent
+(cand, coor, cadd, csub, cmult, cdiv, cmod) = (
+      binOp "and" CBool, binOp "or" CBool
+    , intOp "add", intOp "sub", intOp "mult", intOp "div", intOp "mod"
+    )
+  where
+    binOp opCode t a b =
+        assign $ opCode <> " " <> emit t <> " " <> emit a <> " " <> emit b
+
+    intOp opCode = binOp opCode CInt
+
+-- | Emet une nouvelle instruction IR suivie d\'un retour à la ligne.
+tellLine :: Builder -> CCodeGen ()
+tellLine = tell . (<> "\n")

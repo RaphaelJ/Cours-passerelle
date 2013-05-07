@@ -116,24 +116,24 @@ variableDecl = do
     -- Variables non initialisées.
     getVar (Left (CTypeArray CQualConst _ _, _))      _     Nothing           =
         fail "A constant must be assigned."
-    getVar (Right _)                                  ident Nothing           =
+    getVar (Right _)                                 ident Nothing           =
         fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
 
     -- Variables au type déclaré explicitement.
-    getVar (Left (t, ss))                             ident Nothing           =
-        return $ CVarDecl (CVar t ident) ss Nothing
-    getVar (Left (CTypeArray _ _ (CArray _ _), _))    _     (Just _)          =
+    getVar (Left (t, n))                             ident Nothing           =
+        return $ CVarDecl (CVar t ident) n Nothing
+    getVar (Left (CTypeArray _ _ (CArray _ _), _))   _     (Just _)          =
         fail "Arrays can't be assigned."
-    getVar (Left (t@(CTypeArray _ prim CScalar), ss)) ident (Just (e, prim'))
+    getVar (Left (t@(CTypeArray _ prim CScalar), _)) ident (Just (e, prim'))
         | prim /= prim' =
             fail $ printf "Trying to assign an expression of type `%s` to a \
                           \declaration of type `%s`." (show prim') (show prim)
-        | otherwise     = return $ CVarDecl (CVar t ident) ss (Just e)
+        | otherwise     = return $ CVarDecl (CVar t ident) 1 (Just e)
 
     -- Variables au type inféré.
     getVar (Right qual)                               ident (Just (e, prim')) =
         let t = CTypeArray qual prim' CScalar
-        in return $ CVarDecl (CVar t ident) [] (Just e)
+        in return $ CVarDecl (CVar t ident) 1 (Just e)
 
 -- Types -----------------------------------------------------------------------
 
@@ -147,12 +147,12 @@ typeSpec =     (string "int"  >> return CInt)
 
 -- | Parse un type explicite avec la taille de ses dimensions ou @auto@ avec son
 -- qualifieur.
-varType :: CParser (Either (CTypeArray, [CInt]) CQual)
+varType :: CParser (Either (CTypeArray, CInt) CQual)
 varType = do
     qual <- typeQual
-    (    (do t             <- typeSpec <* spaces
-             (dims, sizes) <- typeDims
-             return $ Left (CTypeArray qual t dims, sizes))
+    (    (do t         <- typeSpec <* spaces
+             (dims, n) <- typeDims
+             return $ Left (CTypeArray qual t dims, n))
      <|> (string "auto" >> return (Right qual)))
 
 -- | Parse le type de l'argument avec la première dimension éventuellement
@@ -161,20 +161,29 @@ argType :: CParser CTypeArray
 argType = do
     t             <- CTypeArray <$> typeQual <*> typeSpec
     mImplicit     <- optionMaybe $ try $ spaces *> subscript spaces
-    (dims, sizes) <- try $ spaces *> typeDims
+    (dims, n) <- try $ spaces *> typeDims
 
     -- Rajoute l'éventuelle première dimension implicite.
-    let dims' | Just _ <- mImplicit = CArray (length sizes + 1) sizes
+    let dims' | Just _ <- mImplicit =
+                    case dims of
+                        CScalar        -> CArray 1       []
+                        CArray d sizes -> CArray (d + 1) (n : sizes)
               | otherwise           = dims
     return $ t dims'
 
 -- | Parse les définitions des tailles des dimensions d\'un tableau.
-typeDims :: CParser (CDims, [CInt])
+-- Retourne les dimensions de la variable et le nombre d\'éléments.
+typeDims :: CParser (CDims, CInt)
 typeDims = do
     sizes <- subscript integerLitteral `sepBy` spaces
     let dims = case sizes of []     -> CScalar
-                             (_:ss) -> CArray (length sizes) ss
-    return (dims, sizes)
+                             (_:ss) -> CArray (length sizes) (paddings ss)
+    return (dims, product sizes)
+
+-- | Pré-calcule les tailles des dimensions des tableaux pour le calcul des
+-- indices à partir des tailles individuelles de chaque dimension.
+paddings :: [CInt] -> [CInt]
+paddings = init . scanr (*) 1
 
 -- Instructions ----------------------------------------------------------------
 
