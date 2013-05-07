@@ -3,12 +3,14 @@
 -- l\'arbre syntaxique du programme.
 module Language.Coda.CCodeGen (genCode, codeGen) where
 
+import Control.Monad (mapM)
 import Control.Monad.State (State, get, put, state)
 import Data.Monoid ((<>))
 import Control.Monad.Writer (WriterT, tell)
+import Data.List (intercalate)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Data.Text.Lazy.Builder (Builder, fromString, toLazyText)
+import Data.Text.Lazy.Builder (Builder, fromString, fromText, toLazyText)
 
 import Language.Code.AST
 
@@ -41,7 +43,7 @@ cFun (CFun ret ident args mStmts) = do
         ident' = "@" <> ident
     args' <- 
 
-    let fType = ret' <> " " <> ident' <> args'
+    let fType = ret' <-> ident' <> args'
     return $ case mStmts of
         Just stmts -> "define "  <> fType <> stmts'
         Nothing    -> "declare " <> fType
@@ -66,16 +68,29 @@ cFun (CFun ret ident args mStmts) = do
 
 -- Types -----------------------------------------------------------------------
 
-class Emitable a where
+class Emittable a where
     emit :: a -> Builder
 
-instance Emitable CType where
+instance Emittable CType where
     emit CInt  = "i64"
     emit CBool = "i1"
 
-instance Emitable LLVMIdent where
+instance Emittable (Maybe CType) where
+    emit (Just t) = emit t
+    emit Nothing  = "void"
+
+instance Emittable LLVMIdent where
     emit (LLVMIdent i) = "%" <> (fromString $ show i)
 
+instance Emittable CArguments where
+    emit (CArguments args) = 
+        let args' = mconcat $ intercalate ", " $ map emit args
+        in "(" <> args <> ")"
+
+
+
+instance Emittable CArgument where
+    emit 
 
 cTypeArray :: CTypeArray -> Builder
 cTypeArray =
@@ -100,24 +115,54 @@ ret :: Maybe (CType, LLVMIdent) -> LLVMIdent -> CCodeGen ()
 ret :: CType -> LLVMIdent -> LLVMOpCode
 ret 
 
+
+cStmt :: CStmt -> CCodeGen ()
+cStmt stmt =
+cStmt (CAssign varExpr expr) =
+    cVarExpr varExpr .=. cExpr expr
+    store 
+    
+cVarDecl (CVarDecl var n mExpr) =
+    
+
 cExpr :: CExpr -> CCodeGen LLVMValue
 cExpr (CCall f args)   = cCall f args
 cExpr (CVariable var)  = LLVMValueIdent <$> (cVarExpr var >>= cload)
 cExpr (CLitteral litt) = cLitteral litt
 cExpr (CBinOp op left right) =
-    LLVMValueIdent <$> (instr <*> cExpr left <*> cExpr right)
+    LLVMValueIdent <$> (instr <*> cExpr left <*> cExpr right) -- FIXME
   where
-    instr = case op of CAnd  -> cand
-                       COr   -> cor
-                       CAdd  -> cadd
-                       CSub  -> csub
-                       CMult -> cmult
-                       CDiv  -> cdiv
-                       CMod  -> cmod
+    instr = case op of CAnd  -> (.&.)
+                       COr   -> (.|.)
+                       CAdd  -> (.+.)
+                       CSub  -> (.-.)
+                       CMult -> (.*.)
+                       CDiv  -> (./.)
+                       CMod  -> (.%.)
 
-cCall :: CFun -> CExpr -> CCodeGen (Maybe LLVMIdent)
-cCall f args = do
-    assign < "call " <
+-- | Exécute un appel de fonction. Par facilité (pour éviter de manipuler un
+-- 'Maybe LLVMIdent' dans l\'arbre d\'expression), un appel à une fonction sans
+-- valeur de retour retourne la constante LLVM @0@, même si celle-ci ne sera
+-- jamais utilisée.
+cCall :: CFun -> CExpr -> CCodeGen LLVMValue
+cCall (CFun t ident args _) exprs = do
+    -- Calcule les valeurs des arguments.
+    values <- mapM cExpr exprs
+
+    let args' = callArgs values
+    case t of
+        Just prim -> assign $ "call " <> emit prim <>
+        Nothing   -> do
+            tellLine $ "call void " <> emit ident <> args
+            return $ LLVMValueInt 0
+  where
+    callArgs values =
+        let builder = intercalate ", " [ callArg arg value
+                                       | arg <- args | value <- values ]
+        in "(" <> builder <> ")"
+
+    callArg arg value = emit (getArgType arg) <-> emit value
+
     call i32 (i8*, ...)* @printf(i8* @fmt, i32 %val)
 
 -- | Contient un pointeur vers la variable dans un identifiant.
@@ -135,13 +180,13 @@ cVarExpr (CVarExpr (CVar (CTypeArray _ CType dims) ident) subs) = do
         CArray _ sizes -> do
             -- Ajoute l'offset si c'est un tableau.
             pad  <- padding sizes subs
-            LLVMVariable t <$> cadd pad varPtr
+            LLVMVariable t <$> (pad .+. varPtr)
   where
     -- Retourne un identifiant qui correspond au résultat du calcul de l'offset.
     padding (size:sizes') (sub:subs) = do
         pad' <- padding sizes' subs -- Offset des dimensions plus profondes.
-        pad  <- cExpr sub >>= cmult (LLVMValueInt size)
-        cadd pad' pad
+        pad  <- cExpr sub >>= (LLVMValueInt size .*.)
+        pad' .+. pad
     padding []            ~[sub]     = cExpr sub
 
 cLitteral :: CLitteral -> CCodeGen LLVMValue
@@ -164,26 +209,29 @@ newIdent = state $ \st@(CCodeGenState i _) ->
     (LLVMIdent i, st { cgsNextIdent = i + 1 })
 
 -- | Déréférence la variable en chargeant son contenu dans un identifiant.
-cload :: LLVMVariable -> CCodeGen LLVMIdent
-cload (LLVMVariable t ptr) = assign $ "load " <> emit t <> "* " <> emit ptr
+load :: LLVMVariable -> CCodeGen LLVMIdent
+load (LLVMVariable t ptr) = assign $ "load " <> emit t <> "* " <> emit ptr
 
 -- | Enregistre une valeur dans une variable.
-cstore :: LLVMVariable -> LLVMValue -> CCodeGen ()
-cstore (LLVMVariable t ptr) val =
+(.=.) :: LLVMVariable -> LLVMValue -> CCodeGen ()
+LLVMVariable t ptr .=. val =
     let t' = emit t
-    in "store " <> t' <> " " <> emit val <> ", " <> t' <> "* " <> emit ptr
+    in "store " <> t' <-> emit val <> ", " <> t' <> "* " <> emit ptr
 
-cand, cor, cadd, csub, cmult, cdiv, cmod ::
+(.&.), (.|.), (.+.), (.-.), (.*.), (./.), (.%.) ::
     LLVMValue -> LLVMValue -> CCodeGen LLVMIdent
-(cand, coor, cadd, csub, cmult, cdiv, cmod) = (
+((.&.), (.|.), (.+.), (.-.), (.*.), (./.), (.%.)) = (
       binOp "and" CBool, binOp "or" CBool
     , intOp "add", intOp "sub", intOp "mult", intOp "div", intOp "mod"
     )
   where
-    binOp opCode t a b =
-        assign $ opCode <> " " <> emit t <> " " <> emit a <> " " <> emit b
+    binOp opCode t a b = assign $ opCode <-> emit t <-> emit a <> ", " <> emit b
 
     intOp opCode = binOp opCode CInt
+
+-- | Concatène deux 'Builder' en ajoutant un espace entre les deux.
+(<->) :: Builder -> Builder -> Builder
+a <-> b = a <> " " <> b
 
 -- | Emet une nouvelle instruction IR suivie d\'un retour à la ligne.
 tellLine :: Builder -> CCodeGen ()

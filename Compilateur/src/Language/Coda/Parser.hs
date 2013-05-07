@@ -60,7 +60,7 @@ functionDecl = do
                     return def)
      <|> (char ';' >> return decl))
   where
-    args = CArguments <$> between (char '(' >> spaces) (char ')')
+    args = CArgs <$> between (char '(' >> spaces) (char ')')
                                   ((arg <* spaces) `sepBy` (char ',' >> spaces))
 
     -- Parse un argument et l'enregistre dans la table de symboles s'il est
@@ -71,8 +71,8 @@ functionDecl = do
         case mIdent of Just ident -> do checkVarIdent ident
                                         let var = CVar t ident
                                         registerVar var
-                                        return $ CVarArgument var
-                       Nothing    -> return $ CAnonArgument t
+                                        return $ CVarArg var
+                       Nothing    -> return $ CAnonArg t
 
     registerFun fun@(CFun tRet ident fArgs mStmts) = do
         st <- psFuns <$> getState
@@ -334,7 +334,7 @@ call = do
             <*> between (char '(' >> spaces) (spaces >> char ')')
                         (expr `sepBy` (spaces >> char ',' >> spaces))
 
-    fun@(CFun _ _ (CArguments fArgs) _) <- getFun ident
+    fun@(CFun _ _ (CArgs fArgs) _) <- getFun ident
     let n  = length args
         n' = length fArgs
     if n /= n' then fail $ printf "Trying to apply %d argument(s) to a function\

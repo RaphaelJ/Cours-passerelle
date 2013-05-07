@@ -43,16 +43,16 @@ data CDims = CScalar | CArray Int [CInt]
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
 
-newtype CArguments = CArguments [CArgument]
+newtype CArgs = CArgs [CArg]
     deriving (Show)
 
 -- | Encode un argument avec un nom de variable associée ou non.
-data CArgument = CVarArgument CVar | CAnonArgument CTypeArray
+data CArg = CVarArg CVar | CAnonArg CTypeArray
     deriving (Show)
 
-getArgType :: CArgument -> CTypeArray
-getArgType (CVarArgument (CVar t _)) = t
-getArgType (CAnonArgument t)         = t
+getArgType :: CArg -> CTypeArray
+getArgType (CVarArg (CVar t _)) = t
+getArgType (CAnonArg t)         = t
 
 -- Instances utilisées pour comparer la stricte égalité entre deux types.
 
@@ -61,23 +61,18 @@ instance Eq CDims where
     CArray n dims == CArray n' dims' = n == n' && take n dims == take n' dims'
     _             == _               = False
 
-instance Eq CArguments where
-    (CArguments (x:xs)) == (CArguments (y:ys)) =
-        x == y && CArguments xs == CArguments ys
-    (CArguments [])     == (CArguments [])     = True
+instance Eq CArgs where
+    (CArgs (x:xs)) == (CArgs (y:ys)) =
+        x == y && CArgs xs == CArgs ys
+    (CArgs [])     == (CArgs [])     = True
     _                   == _                   = False
 
-instance Eq CArgument where
+instance Eq CArg where
     (==) = (==) `on` getArgType
 
 -- Instructions et expressions -------------------------------------------------
 
 type CCompoundStmt = [CStmt]
-
--- | Contient la déclaration d\'une variable, le nombre d'\élements de la 
--- variable (1 si un scalaire) et une éventuelle valeur initiale.
-data CVarDecl = CVarDecl CVar CInt (Maybe CExpr)
-    deriving (Show)
 
 data CStmt = CDecl CVarDecl
            | CAssign CVarExpr CExpr
@@ -85,6 +80,11 @@ data CStmt = CDecl CVarDecl
            | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt
+    deriving (Show)
+
+-- | Contient la déclaration d\'une variable, le nombre d'\élements de la 
+-- variable (1 si un scalaire) et une éventuelle valeur initiale.
+data CVarDecl = CVarDecl CVar CInt (Maybe CExpr)
     deriving (Show)
 
 data CExpr = CCall CFun [CExpr]
