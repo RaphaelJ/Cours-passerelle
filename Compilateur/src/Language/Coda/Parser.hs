@@ -237,7 +237,7 @@ stmt retType =
                                       \ match the function type (`%s`)."
                                       (show prim') (show prim)
                                                       | otherwise     ->
-                        return $ CReturn (Just e)
+                        return $ CReturn (Just (e, prim))
 
             Nothing -> return $ CReturn Nothing
         spaces >> tailingSep >> return (ret, True)
@@ -364,9 +364,9 @@ call = do
 
 varExpr :: CParser (CVarExpr, CTypeArray)
 varExpr = do
-    var@(CVar t@(CTypeArray _ _ dims) _) <- identifier >>= getVar
-    subs                                 <- spaces *> getSubsExprs dims
-    return (CVarExpr var subs, t)
+    var@(CVar (CTypeArray q prim dims) _) <- identifier >>= getVar
+    (subs, dims')                         <- spaces *> getSubsExprs dims
+    return (CVarExpr var dims' subs, CTypeArray q prim dims')
   where
     -- Recherche dans la table des symboles la référence à la variable.
     getVar ident = do
@@ -376,21 +376,21 @@ varExpr = do
             Nothing  -> fail $ printf "Unknown variable identifier : `%s`."
                                       (T.unpack ident)
 
+    -- Déférence éventuellement les dimensions d'un tableau.
     getSubsExprs dims = do
-        subs <- spaces *> (subscript expr `sepBy` spaces)
-        case (dims, subs) of
-            (CScalar   , []   ) -> return []
-            (CScalar   , (_:_)) -> fail "Trying to subscript a scalar variable."
-            (CArray n _, ss) 
-                | n' <- length ss, n' /= n ->
-                    fail $ printf "Dereferencing `%d` dimension(s) of a `%d` \
-                                  \dimension(s) array." n' n
-                | all isValidSub ss -> return $ map fst ss
-                | otherwise ->
-                    fail "Subscripts must be scalar integer expressions."
+            (do sub <- getSubExpr
+                (subs, dims') <- case dims of
+                    CScalar     -> fail "Trying to subscript a scalar variable."
+                    CArray 1 []     -> getSubsExprs CSCalar
+                    CArray n (_:ss) -> getSubsExprs (CArray (n - 1) ss)
+                return (sub:subs, dims')
+        <|> return ([], dims)
 
-    isValidSub (_, Just (CTypeArray _ CBool CScalar)) = True
-    isValidSub _                                      = False
+    getSubExpr = do
+        (sub, tSub) <- subscript expr <* spaces
+        case tSub of
+            Just (CTypeArray _ CBool CScalar) -> return sub
+            _ -> fail "Subscripts must be scalar integer expressions."
 
 litteral :: CParser (CLitteral, CType)
 litteral =     (((, CInt)  . CLitteralInt)  <$> integerLitteral)
@@ -404,8 +404,8 @@ boolLitteral :: CParser CBool
 boolLitteral =     (string "true"  >> return True)
                <|> (string "false" >> return False)
 
-identifier :: CParser T.Text
-identifier =     (T.pack <$> ((:) <$> letter <*> many alphaNum))
+identifier :: CParser CIdent
+identifier =     ((CIdent . T.pack) <$> ((:) <$> letter <*> many alphaNum))
              <?> "identifier"
 
 -- Utilitaires -----------------------------------------------------------------

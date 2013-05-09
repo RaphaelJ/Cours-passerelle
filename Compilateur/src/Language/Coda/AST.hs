@@ -15,14 +15,14 @@ import Data.Int (Int64)
 import Data.Function (on)
 import Data.Text (Text)
 
-newtype AST = AST [CFun]
+newtype AST = AST { astFuns :: [CFun] }
     deriving (Show)
 
-type CIdent = Text
+newtype CIdent = CIdent Text
 
 -- Variables et fonctions ------------------------------------------------------
 
-data CFun = CFun (Maybe CType) CIdent CArguments (Maybe CCompoundStmt)
+data CFun = CFun (Maybe CType) CIdent CArgs (Maybe CCompoundStmt)
     deriving (Show)
 
 data CVar = CVar CTypeArray CIdent
@@ -76,7 +76,7 @@ type CCompoundStmt = [CStmt]
 
 data CStmt = CDecl CVarDecl
            | CAssign CVarExpr CExpr
-           | CReturn (Maybe CExpr)
+           | CReturn (Maybe (CExpr, CType))
            | CExpr CExpr
            | CIf CExpr CCompoundStmt (Maybe CCompoundStmt)
            | CWhile CExpr CCompoundStmt
@@ -98,7 +98,7 @@ data CBinOp = CAnd | COr
             | CAdd | CSub | CMult | CDiv | CMod
     deriving (Show)
 
-data CVarExpr = CVarExpr CVar [CExpr]
+data CVarExpr = CVarExpr CVar CDims [CExpr]
     deriving (Show)
 
 type CBool = Bool
