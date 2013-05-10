@@ -13,12 +13,16 @@ module Language.Coda.AST where
 
 import Data.Int (Int64)
 import Data.Function (on)
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 
 newtype AST = AST { astFuns :: [CFun] }
     deriving (Show)
 
 newtype CIdent = CIdent Text
+    deriving (Eq, Ord)
+
+instance Show CIdent where
+    show (CIdent txt) = unpack txt
 
 -- Variables et fonctions ------------------------------------------------------
 

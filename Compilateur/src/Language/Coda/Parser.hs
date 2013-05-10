@@ -13,8 +13,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Text.Parsec (
       SourceName, ParseError, (<?>), alphaNum, between, char, digit, eof
-    , getState, letter, many, many1, modifyState, optionMaybe, putState
-    , runParser, sepBy, space, spaces, string, try
+    , getParserState, getState, letter, many, many1, modifyState, optionMaybe
+    , putState, runParser, sepBy, setParserState, space, spaces, string, try
     )
 import Text.Parsec.Text.Lazy (GenParser)
 
@@ -61,7 +61,7 @@ functionDecl = do
      <|> (char ';' >> return decl))
   where
     args = CArgs <$> between (char '(' >> spaces) (char ')')
-                                  ((arg <* spaces) `sepBy` (char ',' >> spaces))
+                             ((arg <* spaces) `sepBy` (char ',' >> spaces))
 
     -- Parse un argument et l'enregistre dans la table de symboles s'il est
     -- associé à une variable.
@@ -79,16 +79,16 @@ functionDecl = do
         case ident `M.lookup` st of
             Just (CFun tRet' _ fArgs' mStmts') | tRet' /= tRet ->
                 fail $ printf "Function `%s` is already declared with a \
-                              \different return type." (T.unpack ident)
+                              \different return type." (show ident)
                                               | fArgs /= fArgs' ->
                 fail $ printf "Function `%s` is already declared with different\
-                              \ argument types." (T.unpack ident)
+                              \ argument types." (show ident)
                                               | otherwise     ->
                  -- Ajoute la définition.
                 case (mStmts, mStmts') of
                     (Just _ , Just _)  ->
                         fail $ printf "Multiple definitions of function `%s`."
-                                      (T.unpack ident)
+                                      (show ident)
                     (Just _ , Nothing) -> registerFun' fun
                     _                  -> empty
             Nothing -> registerFun' fun
@@ -117,7 +117,7 @@ variableDecl = do
     getVar (Left (CTypeArray CQualConst _ _, _))      _     Nothing           =
         fail "A constant must be assigned."
     getVar (Right _)                                 ident Nothing           =
-        fail $ printf "Can't infer the type of `%s`." (T.unpack ident)
+        fail $ printf "Can't infer the type of `%s`." (show ident)
 
     -- Variables au type déclaré explicitement.
     getVar (Left (t, n))                             ident Nothing           =
@@ -159,8 +159,8 @@ varType = do
 -- implicite (sans taille).
 argType :: CParser CTypeArray
 argType = do
-    t             <- CTypeArray <$> typeQual <*> typeSpec
-    mImplicit     <- optionMaybe $ try $ spaces *> subscript spaces
+    t         <- CTypeArray <$> typeQual <*> typeSpec
+    mImplicit <- optionMaybe $ try $ spaces *> subscript spaces
     (dims, n) <- try $ spaces *> typeDims
 
     -- Rajoute l'éventuelle première dimension implicite.
@@ -175,7 +175,7 @@ argType = do
 -- Retourne les dimensions de la variable et le nombre d\'éléments.
 typeDims :: CParser (CDims, CInt)
 typeDims = do
-    sizes <- subscript integerLitteral `sepBy` spaces
+    sizes <- subscript integerLitteral `trySepBy` spaces
     let dims = case sizes of []     -> CScalar
                              (_:ss) -> CArray (length sizes) (paddings ss)
     return (dims, product sizes)
@@ -347,18 +347,18 @@ call = do
         case ident `M.lookup` funsSt of
             Just fun -> return fun
             Nothing  -> fail $ printf "Unknown function identifer : `%s`" 
-                                      (T.unpack ident)
+                                      (show ident)
 
     -- Vérifie le type de chaque expression assignée aux arguments de la
     -- fonction.
     getArgsExprs ident i _            ((_, Nothing):_)         =
          fail $ printf "Given a void expression as argument #%d of the call to \
-                       \the function `%s`." i (T.unpack ident)
+                       \the function `%s`." i (show ident)
     getArgsExprs ident i (fArg:fArgs) ((eArg, Just tArg):args)
         | tFunArg <- getArgType fArg, tFunArg /= tArg =
             fail $ printf "Argument #%d of the call to the function `%s` is of \
                           \type `%s` whereas the given expression is of type \
-                          \`%s`."  i (T.unpack ident) (show tFunArg) (show tArg)
+                          \`%s`."  i (show ident) (show tFunArg) (show tArg)
         | otherwise = (eArg:) <$> getArgsExprs ident (i + 1 :: Int) fArgs args
     getArgsExprs _     _ ~[]          ~[]                      = return []
 
@@ -374,16 +374,16 @@ varExpr = do
         case ident `M.lookup` varsSt of
             Just var -> return var
             Nothing  -> fail $ printf "Unknown variable identifier : `%s`."
-                                      (T.unpack ident)
+                                      (show ident)
 
     -- Déférence éventuellement les dimensions d'un tableau.
     getSubsExprs dims = do
             (do sub <- getSubExpr
                 (subs, dims') <- case dims of
                     CScalar     -> fail "Trying to subscript a scalar variable."
-                    CArray 1 []     -> getSubsExprs CSCalar
-                    CArray n (_:ss) -> getSubsExprs (CArray (n - 1) ss)
-                return (sub:subs, dims')
+                    CArray 1 []      -> getSubsExprs CScalar
+                    CArray n ~(_:ss) -> getSubsExprs (CArray (n - 1) ss)
+                return (sub:subs, dims'))
         <|> return ([], dims)
 
     getSubExpr = do
@@ -459,7 +459,7 @@ checkVarIdent ident = do
     varsSt <- psVars <$> getState
     when (ident `M.member` varsSt) $
         fail $ printf "Variable identifer `%s` is already defined."
-                      (T.unpack ident)
+                      (show ident)
 
 -- | Enregistre la variable dans la table des symboles.
 registerVar :: CVar -> CParser ()
@@ -475,6 +475,18 @@ subscript inner = between (char '[' >> spaces)  (spaces >> char ']') inner
 -- | Parse 1 à N caractères d\'espacement.
 spaces1 :: CParser ()
 spaces1 = space >> spaces
+
+-- | Parse plusieurs @p@ séparés par @sep@. Contrairement à 'sepBy', ne consomme
+-- pas @sep@ s\'il n\'est pas suivi de @p@.
+trySepBy :: CParser a -> CParser () -> CParser [a]
+p `trySepBy` sep =
+    (:) <$> p <*> go -- Le premier p n'est pas précédé d'un séparateur.
+  where
+    go =    (do st <- getParserState
+                sep
+                (   ((:) <$> p <*> (p `trySepBy` sep))
+                 <|> (setParserState st >> return []))) -- Si p ne parse pas.
+        <|> (return []) -- Si sep ne parse pas.
 
 -- | Parse jusqu\'à la fin d'instruction.
 tailingSep :: CParser ()
