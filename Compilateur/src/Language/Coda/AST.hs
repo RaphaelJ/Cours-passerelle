@@ -18,7 +18,7 @@ import Data.Text (Text, unpack)
 newtype AST = AST { astFuns :: [CFun] }
     deriving (Show)
 
-newtype CIdent = CIdent Text
+newtype CIdent = CIdent { ciIdent :: Text }
     deriving (Eq, Ord)
 
 instance Show CIdent where
@@ -34,7 +34,11 @@ data CVar = CVar CTypeArray CIdent
 
 -- Types -----------------------------------------------------------------------
 
-data CType = CInt | CBool deriving (Show, Eq)
+data CType = CInt | CBool deriving (Eq)
+
+instance Show CType where
+    show CInt  = "int"
+    show CBool = "bool"
 
 data CTypeArray = CTypeArray CQual CType CDims
     deriving (Show, Eq)
@@ -47,7 +51,7 @@ data CDims = CScalar | CArray Int [CInt]
 
 data CQual = CQualFree | CQualConst deriving (Show, Eq)
 
-newtype CArgs = CArgs [CArg]
+newtype CArgs = CArgs { caArgs :: [CArg] }
     deriving (Show)
 
 -- | Encode un argument avec un nom de variable associée ou non.
@@ -66,17 +70,19 @@ instance Eq CDims where
     _             == _               = False
 
 instance Eq CArgs where
-    (CArgs (x:xs)) == (CArgs (y:ys)) =
-        x == y && CArgs xs == CArgs ys
+    (CArgs (x:xs)) == (CArgs (y:ys)) = x == y && CArgs xs == CArgs ys
     (CArgs [])     == (CArgs [])     = True
-    _                   == _                   = False
+    _              == _              = False
 
 instance Eq CArg where
     (==) = (==) `on` getArgType
 
 -- Instructions et expressions -------------------------------------------------
 
-type CCompoundStmt = [CStmt]
+data CCompoundStmt = CCompoundStmt {
+      csStmts :: [CStmt]
+    , csReturn :: Bool -- ^ Définit si le bloc retourne systématiquement.
+    } deriving (Show)
 
 data CStmt = CDecl CVarDecl
            | CAssign CVarExpr CExpr
@@ -100,7 +106,21 @@ data CExpr = CCall CFun [CExpr]
 data CBinOp = CAnd | COr
             | CEq | CNEq | CLt | CGt | CLtEq | CGtEq
             | CAdd | CSub | CMult | CDiv | CMod
-    deriving (Show)
+
+instance Show CBinOp where
+    show CAnd  = "&&"
+    show COr   = "||"
+    show CEq   = "=="
+    show CNEq  = "!="
+    show CLt   = "<"
+    show CGt   = ">"
+    show CLtEq = "<="
+    show CGtEq = ">="
+    show CAdd  = "+"
+    show CSub  = "-"
+    show CMult = "*"
+    show CDiv  = "/"
+    show CMod  = "%"
 
 data CVarExpr = CVarExpr CVar CDims [CExpr]
     deriving (Show)

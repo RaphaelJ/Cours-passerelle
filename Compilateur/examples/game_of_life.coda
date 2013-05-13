@@ -1,0 +1,61 @@
+# Implémente le jeu de la vie en Coda.
+
+int next_cell_state(const int[10][15] board, int x, int y);
+
+# Calcule l'état suivant d'une grille du jeu de la vie.
+next_state(const int[10][15] origin, int[10][15] res)
+{
+    int y = 0;
+    while (y < 10) {
+        int x = 0;
+        while (x < 15) {
+            res[y][x] = next_cell_state(origin, x, y);
+            x = x + 1;
+        }
+        y = y + 1;
+    }
+}
+
+# Calcule l'état suivant d'une cellule.
+int next_cell_state(const int[10][15] board, int x, int y)
+{
+    # Espace toroïdal : les cellules à gauche de la première colonne sont celles
+    # de la dernière colonne et celles en haut de la première ligne sont celles
+    # de la dernière ligne.
+    int x_left;
+    if (x == 0) {
+        x_left = 14;
+    } else {
+        x_left = x - 1;
+    }
+    int x_right;
+    if (x == 14) {
+        x_right = 0;
+    } else {
+        x_right = x + 1;
+    }
+
+    int y_top;
+    if (y == 0) {
+        y_top = 9;
+    } else {
+        y_top = y - 1;
+    }
+
+    int y_bot;
+    if (y == 9) {
+        y_bot = 0;
+    } else {
+        y_bot = y + 1;
+    }
+
+    auto n = board[y_top][x_left] + board[y_top][x] + board[y_top][x_right]
+           + board[y]    [x_left]                   + board[y]    [x_right]
+           + board[y_bot][x_left] + board[y_bot][x] + board[y_bot][x_right];
+
+    if (n == 3 || (n == 2 && board[y][x] == 1)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}

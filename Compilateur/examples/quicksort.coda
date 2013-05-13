@@ -1,6 +1,8 @@
+# Implémente l'algorithme du QuickSort en Coda.
+
 swap(int[], int, int); # Déclare la fonction avant de la définir.
 
-qsort(int[] v, int left, int right)
+quicksort(int[] v, int left, int right)
 {
     if (left < right) {
         auto i = left + 1;
@@ -14,8 +16,8 @@ qsort(int[] v, int left, int right)
         }
 
         swap(v, left, last);
-        qsort(v, left, last - 1);
-        qsort(v, last + 1, right);
+        quicksort(v, left, last - 1);
+        quicksort(v, last + 1, right);
     }
 }
 
@@ -23,5 +25,6 @@ swap(int[] v, int i, int j)
 {
     auto tmp = v[i];
     v[i] = v[j];
-    v[j] = v[i];
+    v[j] = tmp;
 }
+

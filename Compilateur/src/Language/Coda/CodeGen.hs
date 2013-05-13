@@ -1,79 +1,60 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances, OverloadedStrings, ParallelListComp #-}
 -- | Définit le générateur de code qui génère le code IR d\'LLVM à partir de
 -- l\'arbre syntaxique du programme.
-module Language.Coda.CCodeGen (genCode, codeGen) where
+module Language.Coda.CodeGen (genCode) where
 
-import Control.Monad (mapM, mapM_)
-import Control.Monad.State (State, get, put, runState, state)
+import Control.Applicative ((<$>))
+import Control.Monad (when)
+import Control.Monad.State (State, evalState, get, modify, state)
+import Control.Monad.Writer (WriterT, execWriterT, tell)
+import Data.List (intersperse)
+import qualified Data.Map as M
 import Data.Monoid ((<>), mconcat)
-import Control.Monad.Writer (WriterT, runWriterT, tell)
-import Data.List (intercalate)
-import qualified Data.Text as T
+import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder (Builder, fromString, fromText, toLazyText)
 
-import Language.Code.AST
+import Language.Coda.AST
 
 -- | Monade utilisée lors de la génération des fonctions pour émettre du code
 -- IR, pour garder le comptage des identifiants et pour retenir la
--- correspondance entre les identifiants de l\''AST' et ceux de LLVM.
-type CCodeGen = WriterT TL.Builder (State CCodeGenState)
+-- correspondance entre les identifiants des variables de l\''AST' et ceux du
+-- LLVM IR.
+type CCodeGen = WriterT Builder (State CCodeGenState)
 
 data CCodeGenState = CCodeGenState {
-      cgsNextIdent :: !Int, cgsVarPtrs :: M.Map CIdent LLVMVPtr
+      cgsNextReg :: !LLVMReg, cgsNextLabel :: !LLVMLabel
+    , cgsVarPtrs :: M.Map CIdent LLVMPtr
     }
 
 genCode :: AST -> TL.Text
 genCode = toLazyText . mconcat . map cFun . astFuns
 
--- Fonctions -------------------------------------------------------------------
+-- Types liés au générateur LLVM -----------------------------------------------
 
-cFun :: CFun -> Builder
-cFun (CFun ret ident args mStmts) = do
-    let ret' = case ret of Just t -> cType t
-                           _      -> "void"
+-- | Registre LLVM, soit nommé automatiquement ('LLVMRegInt'), soit nommé 
+-- explicitement.
+data LLVMReg = LLVMRegInt Int | LLVMRegText Text
 
-    let fType = emit ret' <-> emit ident
-    return $ case mStmts of
-        Just stmts ->
-            let (args', instrs) = runCodeGen $ do
-                    stacked <- mapM stackArg args
-                    mapM_ snd stacked -- Arguments scalaires sur la pile
-                    cStmts stmts      -- Génère la fonction
-                    return $ map fst stacked
-            in "define "  <> fType <> "(" <> (mconcat (intercalate ", " args'))
-                                   <> ") { \n" <> instrs <> "}"
+-- | Les labels identifient une section du code généré.
+newtype LLVMLabel = LLVMLabel Int
 
-        Nothing    ->
-            let args' = intercalate ", " $ map (emit . getArgType) args
-            in "declare " <> fType <> "(" <> mconcat args' <> ")"
-  where
-    runCodeGen = flip runState emptyState . snd . runWriterT
+-- | Contient un pointeur vers la variable dans un registre.
+-- La variable doit être déréférencée ('load') pour être utilisée.
+data LLVMPtr = LLVMPtr CType LLVMReg
 
-    -- Alloue un identifiant pour l'argument et retourne sa déclaration ainsi
-    -- qu'une action qui sera exécutée en début de génération de la fonction
-    -- (pour copier la valeur des arguments scalaires sur la pile).
-    stackArg :: CArg -> CCodeGen (Builder, CCodeGen ())
-    stackArg (CVarArg var@(CVar t@(CTypeArray _ prim dims) varIdent)) = do
-        i <- newIdent
+-- | Représente les valeurs qui peuvent être utilisées comme opérande d\'un
+-- opérateur d\'LLVM
+data LLVMValue = LLVMValueReg LLVMReg | LLVMValuePtr LLVMPtr
+               | LLVMValueInt CInt | LLVMValueBool CBool
 
-        -- Copie les arguments scalaires sur la pile mais référence directement
-        -- les tableaux par leur pointeur (passage par référence).
-        let action  = case dims of
-                CScalar    -> do
-                    ptr <- cVarDecl $ CVarDecl var 1 Nothing
-                    store ptr i
-                CArray _ _ -> registerVar varIdent i
-
-        return (emit t <-> emit i, action)
-    stackArg (CAnonArg t) = return (emit t, return ())
-
-    emptyState = CCodeGenState 1 M.empty
-
--- Types -----------------------------------------------------------------------
-
+-- | Type class utilitaire permettant d\'afficher sur les valeurs sur le flux
+-- de sortie du compilateur.
 class Emittable a where
     emit :: a -> Builder
+
+instance Emittable CIdent where
+    emit = fromText . ciIdent
 
 instance Emittable CType where
     emit CInt  = "i64"
@@ -83,103 +64,133 @@ instance Emittable (Maybe CType) where
     emit (Just t) = emit t
     emit Nothing  = "void"
 
-instance Emittable TypeArray where
+instance Emittable CTypeArray where
     emit (CTypeArray _ prim CScalar)      = emit prim
     emit (CTypeArray _ prim (CArray _ _)) = emit prim <> "*"
 
 instance Emittable Int where
     emit = fromString . show
 
-instance Emittable CIdent where
-    emit ident = "@" <> fromText ident
+instance Emittable CInt where
+    emit = fromString . show
 
-instance Emittable LLVMIdent where
-    emit (LLVMIdent i) = "%" <> emit i
+instance Emittable LLVMReg where
+    emit (LLVMRegInt i)      = "%" <> emit i
+    emit (LLVMRegText ident) = "%" <> fromText ident
+
+instance Emittable LLVMLabel where
+    emit (LLVMLabel i) = "label %label_" <> emit i
+
+instance Emittable LLVMPtr where
+    emit (LLVMPtr _ ident) = emit ident
+
+instance Emittable LLVMValue where
+    emit (LLVMValueReg reg)    = emit reg
+    emit (LLVMValuePtr ptr)    = emit ptr
+    emit (LLVMValueInt i)      = emit i
+    emit (LLVMValueBool True)  = "true"
+    emit (LLVMValueBool False) = "false"
+
+-- Fonctions -------------------------------------------------------------------
+
+cFun :: CFun -> Builder
+cFun (CFun ret ident (CArgs args) mStmts) =
+    let fType = emit ret <> " @" <> emit ident
+    in case mStmts of
+        Just stmts ->
+            let args' = map stackArg args
+                instrs = runCodeGen $ do
+                    mapM_ snd args' -- Copie des arguments scalaires sur la pile
+                    cCompoundStmt stmts -- Génère la fonction
+
+                    case ret of Nothing -> tellLine "ret void"
+                                _       -> return ()
+            in "define " <> fType <> argList (map fst args') <> " {\n"
+                         <> instrs <> "}\n"
+        Nothing -> "declare " <> fType <> argList (map (emit . getArgType) args)
+  where
+    runCodeGen = flip evalState emptyState . execWriterT
+
+    -- Retourne la déclaration d'un argument ainsi qu'une action qui sera
+    -- exécutée en début de génération de la fonction pour copier les arguments
+    -- scalaires sur la pile et référencer directement les tableaux par leur
+    -- pointeur (passage par référence).
+    stackArg :: CArg -> (Builder, CCodeGen ())
+    stackArg (CVarArg var@(CVar t@(CTypeArray _ prim dims) varIdent)) =
+        let reg = LLVMRegText $ ciIdent varIdent
+            action  = case dims of
+                CScalar    -> do
+                    ptr <- cVarDecl $ CVarDecl var 1 Nothing
+                    ptr `store` LLVMValueReg reg
+                CArray _ _ -> registerVar varIdent (LLVMPtr prim reg)
+        in (emit t <-> emit reg, action)
+    stackArg (CAnonArg t) = (emit t, return ())
+
+    emptyState = CCodeGenState (LLVMRegInt 1) (LLVMLabel 1) M.empty
 
 -- Instructions et expressions -------------------------------------------------
 
-data LLVMIdent = LLVMIdent Int
-
--- | Contient un pointeur vers la variable dans un identifiant.
--- La variable doit être déréférencée ('load') pour être utilisée.
-data LLVMVPtr = LLVMVPtr CType LLVMIdent
-
-data LLVMValue = LLVMValueIdent LLVMIdent | LLVMValuePtr LLVMVPtr
-               | LLVMValueInt CInt | LLVMValueBool CBool
-
 cCompoundStmt :: CCompoundStmt -> CCodeGen ()
-cCompoundStmt = mapM_ cStmt
+cCompoundStmt = mapM_ cStmt . csStmts
 
 cStmt :: CStmt -> CCodeGen ()
-cStmt (CDecl decl) = cVarDecl decl >>= return ()
+cStmt (CDecl decl) = cVarDecl decl >> return ()
 
 cStmt (CAssign varExpr expr) = do left  <- cVarExpr varExpr
                                   right <- cExpr expr
                                   left `store` right
 
-cStmt (CReturn (Just (expr, t)) = do value <- cExpr expr
-                                     tellLine $ "ret " <> emit t <-> value
-cStmt (CReturn Nothing)         = tellLine "ret void"
+cStmt (CReturn (Just (expr, t))) = do value <- cExpr expr
+                                      tellLine $ "ret " <> emit t <-> emit value
+cStmt (CReturn Nothing)          = tellLine "ret void"
 
-cStmt (CExpr expr) = cExpr expr
+cStmt (CExpr expr) = cExpr expr >> return ()
 
 cStmt (CIf guard ifStmts mElseStmts) = do
     cond <- cExpr guard
-    (ifLabel, tellIfLabel) <- label
+    ifLabel  <- newLabel
+    endLabel <- newLabel
 
-    -- Les labels doivent être alloués le plus près possible de leur utilisation
-    -- ou déclaration, ou l'ordre numérique strictement ascendant des
-    -- identifiants ne sera plus respecté.
-    tellEndLabel <- case mElseStmts of
+    elseRet <- case mElseStmts of
         Just elseStmts -> do
-            (elseLabel, tellElseLabel) <- label
+            elseLabel <- newLabel
             branchCond cond ifLabel elseLabel
 
-            tellElseLabel
+            tellLabel elseLabel
             cCompoundStmt elseStmts
-            (endLabel, tellEndLabel) <- label
-            branch endLabel
-
-            return tellEndLabel
+            if csReturn elseStmts then return True
+                                  else branch endLabel >> return False
         Nothing        -> do
-            (endLabel, tellEndLabel) <- label
-            branchCond cond ifLabel endLabel
+            branchCond cond ifLabel endLabel >> return False
 
-            return tellEndLabel
-
-    tellIfLabel
+    tellLabel ifLabel
     cCompoundStmt ifStmts
+    let ifRet = csReturn ifStmts
+    when (not ifRet) $ branch endLabel
 
-    tellEndLabel
+    when (not $ ifRet && elseRet) $ tellLabel endLabel
 
 cStmt (CWhile guard stmts) = do
-    (guardLabel, tellGuardLabel) <- label
-    tellGuardLabel
-    cond <- cExpr guard
-
-    (loopLabel, tellLoopLabel)   <- label
-    (endLabel, tellEndLabel)     <- label
-    branchCond cond loopLabel endLabel
-
-    tellLoopLabel
-    cCompoundStmt stmts
+    guardLabel <- newLabel
+    loopLabel  <- newLabel
+    endLabel   <- newLabel
     branch guardLabel
 
-    tellEndLabel
+    tellLabel guardLabel
+    cond <- cExpr guard
+    branchCond cond loopLabel endLabel
 
-branch :: LLVMIdent -> CCodeGen ()
-branch = tellLine . ("br " <>)
+    tellLabel loopLabel
+    cCompoundStmt stmts
+    when (not $ csReturn stmts) $ branch guardLabel
 
-branchCond :: LLVMIdent -> LLVMIdent -> LLVMIdent -> CCodeGen ()
-branchCond cond ifTrue ifFalse =
-    tellLine $ "br i1 " <> emit cond <> ", label " <> ifTrue
-                                     <> ", label " <> ifFalse
+    tellLabel endLabel
 
-cVarDecl :: CVarDecl -> CCodeGen LLVMVPtr
-cVarDecl (CVarDecl (CVar (CTypeArray _ t _) ident) n mExpr) =
+cVarDecl :: CVarDecl -> CCodeGen LLVMPtr
+cVarDecl (CVarDecl (CVar (CTypeArray _ prim _) ident) n mExpr) = do
     -- Alloue un espace pour y placer la variable.
-    let alloc = "alloca " <> emit t <> ", " <> emit CInt <-> emit n
-    ptr <- LLVMVPtr <$> assign alloc
+    let alloc = "alloca " <> emit prim <> ", " <> emit CInt <-> emit n
+    ptr <- LLVMPtr prim <$> assign alloc
     registerVar ident ptr
 
     case mExpr of
@@ -188,130 +199,159 @@ cVarDecl (CVarDecl (CVar (CTypeArray _ t _) ident) n mExpr) =
     return ptr
 
 cExpr :: CExpr -> CCodeGen LLVMValue
-cExpr (CCall f args)   = cCall f args
+cExpr (CCall f args) =
+    -- Par facilité, un appel à une fonction sans valeur de retour retourne la
+    -- constante LLVM 0, même si celle-ci ne sera jamais utilisée.
+    maybe (LLVMValueInt 0) LLVMValueReg <$> cCall f args
 cExpr (CVariable var@(CVarExpr _ dim _)) = do
     ptr <- cVarExpr var
-    -- Déréférence le pointeur dans un identifiant si le pointeur pointe vers un
-    -- scalaire (i.e. variable ou tableau complètement appliqué).
+    -- Déréférence le pointeur dans un identifiant si l'expression retourne un
+    -- pointeur vers un scalaire (i.e. variable ou tableau complètement
+    -- appliqué).
     case dim of
-        CScalar    -> LLVMValueIdent <$> load ptr
+        CScalar    -> LLVMValueReg <$> load ptr
         CArray _ _ -> return $ LLVMValuePtr ptr
-cExpr (CLitteral litt) = cLitteral litt
+cExpr (CLitteral litt) = return $ cLitteral litt
 cExpr (CBinOp op left right) = do
-    left  <- cExpr left
-    right <- cExpr right
-    LLVMValueIdent <$> instr left right
+    left'  <- cExpr left
+    right' <- cExpr right
+    LLVMValueReg <$> instr left' right'
   where
     instr = case op of CAnd  -> (.&.)
                        COr   -> (.|.)
+                       CEq   -> (.==.)
+                       CNEq  -> (.!=.)
+                       CLt   -> (.<.)
+                       CGt   -> (.>.)
+                       CLtEq -> (.<=.)
+                       CGtEq -> (.>=.)
                        CAdd  -> (.+.)
                        CSub  -> (.-.)
                        CMult -> (.*.)
                        CDiv  -> (./.)
                        CMod  -> (.%.)
 
--- | Exécute un appel de fonction. Par facilité (pour éviter de manipuler un
--- 'Maybe LLVMIdent' dans l\'arbre d\'expression), un appel à une fonction sans
--- valeur de retour retourne la constante LLVM @0@, même si celle-ci ne sera
--- jamais utilisée.
-cCall :: CFun -> CExpr -> CCodeGen LLVMValue
-cCall (CFun t ident args _) exprs = do
+-- | Exécute un appel de fonction.
+cCall :: CFun -> [CExpr] -> CCodeGen (Maybe LLVMReg)
+cCall (CFun t ident (CArgs args) _) exprs = do
     -- Calcule les valeurs des arguments.
     values <- mapM cExpr exprs
 
-    let args' = callArgs values
-        call  = callType <-> emit ident <> args'
+    let call  = callType <-> "@" <> emit ident <> args'
+        args' = callArgs values
     case t of
         Just prim ->
-            assign   $ "call " <> emit prim <-> call
+            Just <$> (assign $ "call " <> emit prim <-> call)
         Nothing   -> do
-            tellLine $ "call void "          <> call
-            return $ LLVMValueInt 0
+            tellLine $ "call void " <> call
+            return Nothing
   where
-    callType =
-        let builder = intercalate ", " $ map (emit . getArgType) args
-        in "(" <> mconcat builder <> ")*"
+    callType = argList (map (emit . getArgType) args) <> "*"
 
-    callArgs values =
-        let builder = intercalate ", " [ emit (getArgType arg) <-> emit value
-                                       | arg <- args | value <- values ]
-        in "(" <> mconcat builder <> ")"
+    callArgs values = argList [ emit (getArgType arg) <-> emit value
+                              | arg <- args | value <- values ]
 
 -- | Retourne le pointeur correspondant à l'expression.
-cVarExpr :: CVarExpr -> CCodeGen LLVMVPtr
+cVarExpr :: CVarExpr -> CCodeGen LLVMPtr
 cVarExpr (CVarExpr (CVar (CTypeArray _ prim dims) ident) _ subs) = do
     -- Récupère le pointeur associé à la variable.
-    Just varPtr@(LLVMVPtr t ptr) <- (ident `M.lookup`) . cgsVarIdents <$> get
+    Just varPtr <- ((ident `M.lookup`) . cgsVarPtrs) <$> get
 
     case dims of
         CScalar        -> return varPtr
-        CArray _ sizes -> do
-            -- Ajoute l'offset si c'est un tableau.
-            pad  <- padding sizes subs
-            LLVMVPtr t <$> (pad .+. ptr)
+        CArray _ sizes | null subs -> return varPtr
+                       | otherwise -> do
+            -- Ajoute l'offset si subscript est un tableau.
+            pad <- padding sizes subs
+            ptr <- assign $ "getelementptr " <> emit prim <> "* " <> emit varPtr
+                                             <> ", " <> emit CInt <-> emit pad
+            return $ LLVMPtr prim ptr
   where
-    -- Retourne un identifiant qui correspond au résultat du calcul de l'offset.
-    padding (size:sizes') (sub:subs) = do
-        pad' <- padding sizes' subs -- Offset des dimensions plus profondes.
+    -- Retourne une valeur correspond au résultat du calcul de l'offset.
+    padding (size:sizes') ~(sub:subs') = do
+        pad' <- padding sizes' subs' -- Offset des dimensions plus profondes.
         pad  <- cExpr sub >>= (LLVMValueInt size .*.)
-        pad' .+. pad
-    padding []            ~[sub]     = cExpr sub
+        LLVMValueReg <$> (pad' .+. LLVMValueReg pad)
+    padding []            ~[sub]       = cExpr sub
 
-cLitteral :: CLitteral -> CCodeGen LLVMValue
+cLitteral :: CLitteral -> LLVMValue
 cLitteral (CLitteralInt i)  = LLVMValueInt  i
 cLitteral (CLitteralBool b) = LLVMValueBool b
 
--- Utilitaires -----------------------------------------------------------------
+-- Utilitaires et primitives LLVM ----------------------------------------------
 
--- | Exécute l\'opération et enregistre le résultat dans un nouvel identifiant.
--- Retourne ce nouvel identifiant.
-assign :: LLVMOp -> CCodeGen LLVMIdent
-assign op = do ident <- newIdent
-               tellLine $ emit ident <> " = " <> emit op
-               return ident
+-- | Concatène les 'Builder's en une liste entre parenthèses.
+argList :: [Builder] -> Builder
+argList args = "(" <> (mconcat (intersperse ", " args)) <> ")"
 
--- | Alloue et retourne un nouvel identifiant.
-newIdent :: CCodeGen LLVMIdent
-newIdent = state $ \st@(CCodeGenState i _) ->
-    (LLVMIdent i, st { cgsNextIdent = i + 1 })
+-- | Assigne l\'opération dans un nouveau registre. Retourne l\'identifiant de
+-- ce nouveau registre.
+assign :: Builder -> CCodeGen LLVMReg
+assign op = do reg <- newReg
+               tellLine $ emit reg <> " = " <> op
+               return reg
 
--- | Déréférence la variable en chargeant son contenu dans un identifiant.
-load :: LLVMVariable -> CCodeGen LLVMIdent
-load (LLVMVariable t ptr) = assign $ "load " <> emit t <> "* " <> emit ptr
+-- | Branche sur le bloc inconditionnellement.
+branch :: LLVMLabel -> CCodeGen ()
+branch = tellLine . ("br " <>) . emit
+
+-- | Branche en fonction de la valeur d'une condition.
+branchCond :: LLVMValue -> LLVMLabel -> LLVMLabel -> CCodeGen ()
+branchCond cond ifTrue ifFalse =
+    tellLine $ "br i1 " <> emit cond <> ", " <> emit ifTrue
+                                     <> ", " <> emit ifFalse
 
 -- | Alloue un nouveau label sans l\'émettre (pour permettre son utilisation
--- avant sa déclaration). Retourne une action qui permettra de le déclarer.
-label :: CCodeGen (LLVMIdent, CCodeGen ())
-label = do ident@(LLVMIdent i) <- newIdent
-           return (ident, tellLine $ "; <label>:" <> emit i)
+-- avant sa déclaration).
+newLabel :: CCodeGen LLVMLabel
+newLabel = state $ \st@(CCodeGenState _ label@(LLVMLabel i) _) ->
+    (label, st { cgsNextLabel = LLVMLabel (i + 1) })
 
--- | Enregistre une valeur dans une variable.
-store :: LLVMVariable -> LLVMValue -> CCodeGen ()
-store (LLVMVariable t ptr) val =
-    let t' = emit t
-    in "store " <> t' <-> emit val <> ", " <> t' <> "* " <> emit ptr
+-- | Alloue et retourne un nouvel identifiant numérique.
+newReg :: CCodeGen LLVMReg
+newReg = state $ \st@(CCodeGenState reg@(LLVMRegInt i) _ _) ->
+    (reg, st { cgsNextReg = LLVMRegInt (i + 1) })
 
-(.&.), (.|.), (.+.), (.-.), (.*.), (./.), (.%.) ::
-    LLVMValue -> LLVMValue -> CCodeGen LLVMIdent
-((.&.), (.|.), (.+.), (.-.), (.*.), (./.), (.%.)) = (
-      binOp "and" CBool, binOp "or" CBool
-    , intOp "add", intOp "sub", intOp "mult", intOp "div", intOp "mod"
-    )
-  where
-    binOp opCode t a b = assign $ opCode <-> emit t <-> emit a <> ", " <> emit b
-
-    intOp opCode = binOp opCode CInt
+-- | Déréférence la variable en chargeant son contenu dans un identifiant.
+load :: LLVMPtr -> CCodeGen LLVMReg
+load (LLVMPtr t ptr) = assign $ "load " <> emit t <> "* " <> emit ptr
 
 -- | Retiens la correspondance entre l\'identificateur de la variable et le
 -- pointeur.
 registerVar :: CIdent -> LLVMPtr -> CCodeGen ()
 registerVar ident ptr =
-    modify $ \st -> st { cgsVarPtrs = M.insert ident ptr (cgsVarPtrs st) })
+    modify $ \st -> st { cgsVarPtrs = M.insert ident ptr (cgsVarPtrs st) }
+
+-- | Enregistre une valeur dans une variable.
+store :: LLVMPtr -> LLVMValue -> CCodeGen ()
+store (LLVMPtr t ptr) val =
+    let t' = emit t
+    in tellLine $ "store " <> t' <-> emit val <> ", " <> t' <> "* " <> emit ptr
+
+-- | Indique le début d\'un nouveau bloc identifié par un label.
+tellLabel :: LLVMLabel -> CCodeGen ()
+tellLabel (LLVMLabel i) = tell $ "label_" <> emit i <> ":\n"
+
+-- | Emet une nouvelle instruction IR suivie d\'un retour à la ligne.
+tellLine :: Builder -> CCodeGen ()
+tellLine = tell . ("    " <>) . (<> "\n")
+
+-- Opcodes arithmétiques et relationnels d'LLVM.
+
+(.&.), (.|.), (.==.), (.!=.), (.<.), (.>.), (.<=.), (.>=.), (.+.), (.-.), (.*.),
+    (./.), (.%.) :: LLVMValue -> LLVMValue -> CCodeGen LLVMReg
+((.&.), (.|.), (.==.), (.!=.), (.<.), (.>.), (.<=.), (.>=.),(.+.), (.-.), (.*.),
+ (./.), (.%.)) = (
+      binOp "and" CBool, binOp "or" CBool
+    , icmp "eq", icmp "ne", icmp "slt", icmp "sgt", icmp "sle", icmp "sge"
+    , intOp "add", intOp "sub", intOp "mul", intOp "sdiv", intOp "srem"
+    )
+  where
+    binOp opCode t a b = assign $ opCode <-> emit t <-> emit a <> ", " <> emit b
+
+    icmp cond = binOp ("icmp" <-> cond) CInt
+    intOp opCode = binOp opCode CInt
 
 -- | Concatène deux 'Builder' en ajoutant un espace entre les deux.
 (<->) :: Builder -> Builder -> Builder
 a <-> b = a <> " " <> b
-
--- | Emet une nouvelle instruction IR suivie d\'un retour à la ligne.
-tellLine :: Builder -> CCodeGen ()
-tellLine = tell . (<> "\n")
