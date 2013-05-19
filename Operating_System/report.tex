@@ -1,0 +1,92 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{verbatim}
+\pagestyle{headings}
+
+\title{Système d'exploitation : Projet 2}
+\author{Raphael Javaux et Marien Bourguignon}
+\date{Avril-Mai 2013}
+
+\begin{document}
+
+\maketitle
+
+\section{Architecture}
+
+ \subsection{Enregistrement d'une page dans le ZRLE cache}
+
+    \paragraph{}Notre implémentation intercepte les pages allant être swappées
+dans la fonction \texttt{swap\_writepage()}. Chaque page est analysée pour
+calculer sa taille une fois compressée avec l'algorithme ZRLE.
+
+    \paragraph{}Si la taille de la page une fois compressée est inférieure à
+80\% à la taille d'une page non compressée, alors nous parcourons l'ensemble
+des secteurs libres (listés sous la forme d'un chaînage) de nos "bins" à la
+recherche du premier secteur suffisamment grand pour accueillir la page
+compressée. Si un tel espace existe, la page est enregistrée dans cette zone.
+
+    \paragraph{}Un nœud est ensuite ajouté dans un \texttt{radix tree} du
+kernel pour enregistrer le correspondance entre une \texttt{swp\_entry\_t} et
+la page compressée. A cet instant, la page est considérée comme étant présente
+dans le ZRLE cache.
+
+    \paragraph{}Etant donné que les pages sont interceptées dans la fonction
+\texttt{swap\_writepage()}, une \texttt{swp\_entry\_t} a été déjà allouée pour
+chacune d'elle. Malheureusement, cela implique qu'un espace a été alloué sur
+la \texttt{swap device} alors qu'il est inutilisé. Cependant, il s'agit de la
+solution la plus simple que nous avons pu trouver. Nous avons d'abord envisagé
+d'intercepter la page dans \texttt{shrink\_page\_list()}, avant qu'un secteur
+de la swap ne soit alloué, mais cela s'avère beaucoup trop complexe (notamment,
+tout \texttt{pte\_t} pourrait pointer vers une entrée du cache en plus d'une page
+physique ou d'une entrée d'une \texttt{swap device}, et ce cas devrait être
+envisagé à chaque endroit où un \texttt{pte\_t} est accédé).
+
+    \paragraph{}Si la page ne peut pas être suffisamment compressée, ou si
+aucun espace n'est disponible dans le cache, la page est transmise à la
+\texttt{swap device} comme dans le noyau non modifié.
+
+ \subsection{Recopie des bins du cache sur le disque}
+
+    \paragraph{}Nous ne sommes malheureusement pas parvenus à implémenter le
+transfert des "bins" remplis sur le disque.
+
+ \subsection{Récupération d'une page}
+
+    \paragraph{}Notre implémentation intercepte les requêtes de récupération
+des pages de swap dans la fonction \texttt{swap\_writepage()}. Pour chaque
+requête, nous recherchons si une correspondance à la \texttt{swp\_entry\_t}
+existe dans l'arbre de recherche du cache.
+
+    \paragraph{}Si une telle correspondance existe, le contenu compressé est
+restauré dans la page, le contenu du cache désalloué et l'accès à la 
+\texttt{swap device} évité.
+
+    \paragraph{}Si aucune correspondance n'existe, alors la page se trouve sur
+la \texttt{swap device} et le noyau reprend son cours normal d'exécution.
+
+ \subsection{Structure du cache}
+
+    \paragraph{}Nous avons organisé notre cache de manière relativement efficace.
+
+    \paragraph{}Chaque "bin" se comporte comme un allocateur dynamique en
+utilisant une structuration similaire à celle décrite au cours de cet article :
+
+    \begin{center}
+        \textbf{http://jamesgolick.com/2013/5/15/memory-allocators-101.html}
+    \end{center}
+
+    \paragraph{}Notre implémentation permet notamment de réduire la
+fragmentation induite lorsque des pages compressées sont supprimées du cache de
+manière rapide et efficace.
+
+    \paragraph{}Comme dit plus haut, chaque page compressée dans le cache est
+répertoriée dans un arbre de recherche à partir de son \texttt{swp\_entry\_t},
+pour rendre les interceptions des pages compressées rapides.
+
+    \paragraph{}Pour maintenir la cohérence de notre cache, nous avons envisagé
+de protéger les opérations sur celui-ci à l'aide d'un \texttt{spin\_lock}.
+Malheureusement, pour une raison qui nous est inconnue, celui-ci semblait
+provoquer des dead-locks.
+
+\end{document}
