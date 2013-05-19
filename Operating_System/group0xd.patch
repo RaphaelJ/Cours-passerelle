@@ -1,0 +1,823 @@
+diff -burN linux-source-3.2.0/arch/x86/include/asm/unistd_32.h release-3.2.0/arch/x86/include/asm/unistd_32.h
+--- linux-source-3.2.0/arch/x86/include/asm/unistd_32.h	2012-01-05 00:55:44.000000000 +0100
++++ release-3.2.0/arch/x86/include/asm/unistd_32.h	2013-03-17 18:50:12.000000000 +0100
+@@ -354,10 +354,11 @@
+ #define __NR_setns		346
+ #define __NR_process_vm_readv	347
+ #define __NR_process_vm_writev	348
++#define __NR_irradiate		349
+ 
+ #ifdef __KERNEL__
+ 
+-#define NR_syscalls 349
++#define NR_syscalls 350
+ 
+ #define __ARCH_WANT_IPC_PARSE_VERSION
+ #define __ARCH_WANT_OLD_READDIR
+diff -burN linux-source-3.2.0/arch/x86/kernel/syscall_table_32.S release-3.2.0/arch/x86/kernel/syscall_table_32.S
+--- linux-source-3.2.0/arch/x86/kernel/syscall_table_32.S	2012-01-05 00:55:44.000000000 +0100
++++ release-3.2.0/arch/x86/kernel/syscall_table_32.S	2013-03-17 18:50:12.000000000 +0100
+@@ -348,3 +348,4 @@
+ 	.long sys_setns
+ 	.long sys_process_vm_readv
+ 	.long sys_process_vm_writev
++	.long sys_irradiate
+diff -burN linux-source-3.2.0/include/linux/syscalls.h release-3.2.0/include/linux/syscalls.h
+--- linux-source-3.2.0/include/linux/syscalls.h	2012-01-05 00:55:44.000000000 +0100
++++ release-3.2.0/include/linux/syscalls.h	2013-03-17 18:50:12.000000000 +0100
+@@ -856,5 +856,5 @@
+ 				      const struct iovec __user *rvec,
+ 				      unsigned long riovcnt,
+ 				      unsigned long flags);
+-
++asmlinkage long sys_irradiate(const void *vptr);
+ #endif
+diff -burN linux-source-3.2.0/mm/internal.h release-3.2.0/mm/internal.h
+--- linux-source-3.2.0/mm/internal.h	2013-01-24 16:28:30.000000000 +0100
++++ release-3.2.0/mm/internal.h	2013-05-17 01:14:09.000000000 +0200
+@@ -13,6 +13,27 @@
+ 
+ #include <linux/mm.h>
+ 
++#include <linux/swap.h>
++#include <linux/swapops.h>
++
++/* Irradiate page */
++
++extern pte_t irradiated_pte;
++
++bool is_irradiated_page(const struct page *page);
++bool is_irradiated_swap(swp_entry_t swap);
++
++/* ZRLE Cache */
++
++typedef enum {
++	ZRLE_FAILED, ZRLE_SUCCESS
++} ZRLE_RET;
++
++ZRLE_RET zrle_try_add(struct page *page);
++ZRLE_RET zrle_try_retrieve(struct page *page);
++
++/* Kernel */
++
+ void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
+ 		unsigned long floor, unsigned long ceiling);
+ 
+diff -burN linux-source-3.2.0/mm/irradiate.c release-3.2.0/mm/irradiate.c
+--- linux-source-3.2.0/mm/irradiate.c	1970-01-01 01:00:00.000000000 +0100
++++ release-3.2.0/mm/irradiate.c	2013-05-17 21:50:17.000000000 +0200
+@@ -0,0 +1,73 @@
++#include <asm/current.h>
++#include <asm/page.h>
++#include <linux/kernel.h> 
++#include <linux/linkage.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/sched.h>
++
++#include "internal.h"
++
++/* Nous avions tenté d'utiliser un pointeur vers le PTE dans la table du
++ * processus, mais malheureusement la fonction follow_page() retourne un
++ * struct page *. Nous aurions pu recopier le contenu de cette fonction dans
++ * sys_irradiate(), mais étant donné la longueur de celle-ci (il semble y avoir
++ * quatre niveaux de tables au lieu de trois dans les version récentes du
++ * noyau), nous avons préféré simplement modifier irradiated_pte dans
++ * shrink_page_list() et do_swap_page(), c'est à dire lorsque les valeurs des
++ * PTEs sont mises à jour. */
++pte_t irradiated_pte;
++bool is_irradiated = false;
++
++const long IRR_SUCCESS = 0;
++const long IRR_ERR_NO_PAGE_SET = -1; // Aucune page ne peut être désirradiée
++const long IRR_ERR_BUSY = -2; // Autre page déjà irradiée
++const long IRR_INVALID_ADDR = -3; // Addresse pas dans l'espace de l'utilisateur
++
++/* Enregistre une addresse virtuelle d'un procresus pour suivre ses actions
++ * dans le kernel. */
++asmlinkage long sys_irradiate(const void *vptr)
++{
++    if (vptr == 0) {
++        if (is_irradiated) {
++            printk(
++                "Process %lx canceled page irradiation.\n", 
++                (unsigned long) current->pid
++            );
++            is_irradiated = false;
++            return IRR_SUCCESS;
++        } else
++            return IRR_ERR_NO_PAGE_SET;
++    } else if (is_irradiated)
++        return IRR_ERR_BUSY;
++    else {
++        // Trouve la page correspondante à l'adresse fournie.
++        unsigned long addr = (unsigned long) vptr;
++        struct vm_area_struct *vma = get_current()->mm->mmap;
++        struct page *page = follow_page(vma, addr, 0);
++
++        if (page) {
++            irradiated_pte = mk_pte(page, vma->vm_page_prot);
++            is_irradiated = true;
++
++            printk(
++                "irradiating %lx@%lx as %lx\n", (unsigned long) current->pid,
++                addr, (unsigned long) pte_val(irradiated_pte)
++            );
++            return IRR_SUCCESS;
++        } else 
++            return IRR_INVALID_ADDR;
++    }
++}
++
++/* True si la page contient l'addresse irradiée. */
++bool is_irradiated_page(const struct page *page)
++{
++    return is_irradiated && page == pte_page(irradiated_pte);
++}
++
++/* True si le secteur de la swap contient l'addresse irradiée. */
++bool is_irradiated_swap(swp_entry_t swap)
++{
++    return is_irradiated && swap.val == pte_to_swp_entry(irradiated_pte).val;
++}
+diff -burN linux-source-3.2.0/mm/Makefile release-3.2.0/mm/Makefile
+--- linux-source-3.2.0/mm/Makefile	2012-01-05 00:55:44.000000000 +0100
++++ release-3.2.0/mm/Makefile	2013-05-14 02:37:19.000000000 +0200
+@@ -13,7 +13,7 @@
+ 			   readahead.o swap.o truncate.o vmscan.o shmem.o \
+ 			   prio_tree.o util.o mmzone.o vmstat.o backing-dev.o \
+ 			   page_isolation.o mm_init.o mmu_context.o percpu.o \
+-			   $(mmu-y)
++			   irradiate.o zrle_cache.o $(mmu-y)
+ obj-y += init-mm.o
+ 
+ ifdef CONFIG_NO_BOOTMEM
+diff -burN linux-source-3.2.0/mm/memory.c release-3.2.0/mm/memory.c
+--- linux-source-3.2.0/mm/memory.c	2013-01-24 16:28:30.000000000 +0100
++++ release-3.2.0/mm/memory.c	2013-05-18 21:37:13.000000000 +0200
+@@ -1165,8 +1165,16 @@
+ 				if (pte_dirty(ptent))
+ 					set_page_dirty(page);
+ 				if (pte_young(ptent) &&
+-				    likely(!VM_SequentialReadHint(vma)))
++				    likely(!VM_SequentialReadHint(vma))) {
++					if (is_irradiated_page(page)) {
++						printk(
++							"ignoring young %lx\n",
++							(unsigned long) pte_val(irradiated_pte)
++						);
++					}
++					
+ 					mark_page_accessed(page);
++				}
+ 				rss[MM_FILEPAGES]--;
+ 			}
+ 			page_remove_rmap(page);
+@@ -3018,6 +3026,16 @@
+ 		goto out;
+ 	}
+ 
++	/* La page a été relue depuis la swap. */
++	if (is_irradiated_swap(entry)) {
++		printk(
++			"%lx restored as %lx\n",
++			(unsigned long) pte_to_swp_entry(irradiated_pte).val,
++			(unsigned long) pte_val(pte)
++		);
++		irradiated_pte = pte;
++	}
++
+ 	/* No need to invalidate - it was non-present before */
+ 	update_mmu_cache(vma, address, page_table);
+ unlock:
+@@ -3420,6 +3438,7 @@
+ 		if (pte_file(entry))
+ 			return do_nonlinear_fault(mm, vma, address,
+ 					pte, pmd, flags, entry);
++
+ 		return do_swap_page(mm, vma, address,
+ 					pte, pmd, flags, entry);
+ 	}
+@@ -3435,6 +3454,7 @@
+ 		entry = pte_mkdirty(entry);
+ 	}
+ 	entry = pte_mkyoung(entry);
++
+ 	if (ptep_set_access_flags(vma, address, pte, entry, flags & FAULT_FLAG_WRITE)) {
+ 		update_mmu_cache(vma, address, pte);
+ 	} else {
+diff -burN linux-source-3.2.0/mm/page_io.c release-3.2.0/mm/page_io.c
+--- linux-source-3.2.0/mm/page_io.c	2012-01-05 00:55:44.000000000 +0100
++++ release-3.2.0/mm/page_io.c	2013-05-18 21:45:36.000000000 +0200
+@@ -13,6 +13,7 @@
+ #include <linux/mm.h>
+ #include <linux/kernel_stat.h>
+ #include <linux/gfp.h>
++#include <linux/mm.h>
+ #include <linux/pagemap.h>
+ #include <linux/swap.h>
+ #include <linux/bio.h>
+@@ -20,6 +21,8 @@
+ #include <linux/writeback.h>
+ #include <asm/pgtable.h>
+ 
++#include "internal.h"
++
+ static struct bio *get_swap_bio(gfp_t gfp_flags,
+ 				struct page *page, bio_end_io_t end_io)
+ {
+@@ -94,10 +97,19 @@
+ 	struct bio *bio;
+ 	int ret = 0, rw = WRITE;
+ 
++	swp_entry_t swap = { .val = page_private(page) };
++
+ 	if (try_to_free_swap(page)) {
+ 		unlock_page(page);
+ 		goto out;
+ 	}
++
++	/* Tente d'ajouter la page au ZRLE cache. */
++	if (zrle_try_add(page) == ZRLE_SUCCESS) {
++		unlock_page(page);
++		goto out;
++	}
++
+ 	bio = get_swap_bio(GFP_NOIO, page, end_swap_bio_write);
+ 	if (bio == NULL) {
+ 		set_page_dirty(page);
+@@ -111,6 +123,12 @@
+ 	set_page_writeback(page);
+ 	unlock_page(page);
+ 	submit_bio(rw, bio);
++
++	if (is_irradiated_swap(swap)) {
++		printk(
++			"vanilla page-out for %lx\n", page_private(page)
++		);
++	}
+ out:
+ 	return ret;
+ }
+@@ -122,6 +140,14 @@
+ 
+ 	VM_BUG_ON(!PageLocked(page));
+ 	VM_BUG_ON(PageUptodate(page));
++
++	/* Tente de recharger la page depuis le ZRLE cache. */
++	if (zrle_try_retrieve(page) == ZRLE_SUCCESS) {
++		SetPageUptodate(page);
++		unlock_page(page);
++		goto out;
++        }
++
+ 	bio = get_swap_bio(GFP_KERNEL, page, end_swap_bio_read);
+ 	if (bio == NULL) {
+ 		unlock_page(page);
+diff -burN linux-source-3.2.0/mm/vmscan.c release-3.2.0/mm/vmscan.c
+--- linux-source-3.2.0/mm/vmscan.c	2013-01-24 16:28:30.000000000 +0100
++++ release-3.2.0/mm/vmscan.c	2013-05-18 21:36:26.000000000 +0200
+@@ -502,6 +502,7 @@
+ 		trace_mm_vmscan_writepage(page,
+ 			trace_reclaim_flags(page, sc->reclaim_mode));
+ 		inc_zone_page_state(page, NR_VMSCAN_WRITE);
++		
+ 		return PAGE_SUCCESS;
+ 	}
+ 
+@@ -778,6 +779,8 @@
+ 		struct page *page;
+ 		int may_enter_fs;
+ 
++		pte_t old_pte;
++
+ 		cond_resched();
+ 
+ 		page = lru_to_page(page_list);
+@@ -846,6 +849,9 @@
+ 
+ 		mapping = page_mapping(page);
+ 
++		/* Sauvegarde l'ancienne valeur du PTE avant le unmap. */
++		old_pte = irradiated_pte;
++
+ 		/*
+ 		 * The page is mapped into the page tables of one or more
+ 		 * processes. Try to unmap it here.
+@@ -863,6 +869,18 @@
+ 			}
+ 		}
+ 
++		/* La page a été marquée pour être swappée et les tables des
++		 * processus ont été redirigées vers la swap_entry_t. */
++		if (is_irradiated_page(page)) {
++			printk(
++				"swapping %lx as %lx\n",
++				(unsigned long) pte_val(irradiated_pte),
++				(unsigned long) page_private(page)
++			);
++			swp_entry_t swap = { .val = page_private(page) };
++			irradiated_pte = swp_entry_to_pte(swap);
++		}
++
+ 		if (PageDirty(page)) {
+ 			nr_dirty++;
+ 
+diff -burN linux-source-3.2.0/mm/zrle_cache.c release-3.2.0/mm/zrle_cache.c
+--- linux-source-3.2.0/mm/zrle_cache.c	1970-01-01 01:00:00.000000000 +0100
++++ release-3.2.0/mm/zrle_cache.c	2013-05-18 21:37:27.000000000 +0200
+@@ -0,0 +1,494 @@
++/* Alloue un cache statique pour y placer des pages compressées.
++ * Chaque page compressée y est identifiée par la valeur de son swp_entry_t.
++ */
++
++#include <asm/current.h>
++#include <asm/highmem.h>
++#include <asm/page.h>
++#include <linux/crc16.h>
++#include <linux/kernel.h>
++#include <linux/linkage.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/pagemap.h>
++#include <linux/printk.h>
++#include <linux/radix-tree.h>
++#include <linux/sched.h>
++#include <linux/string.h>
++
++#include "internal.h"
++
++typedef u8 byte;
++
++/* Permet d'activer la vérification d'assertion.
++ * Notamment, va tester si la CRC des pages compressées n'a pas changée entre
++ * l'insertion et la récupération. */
++#define ZRLE_DEBUG
++
++#define ZRLE_THRESHOLD 80   /* Sur 100 */
++#define ZRLE_BINS      1024
++#define ZRLE_BIN_SIZE  PAGE_SIZE
++
++/* Contient un ensemble de pages compressées.
++ * Chaque bin va contenir un ensemble de pages compressées, chacune précédée
++ * par une structure zrle_entry_t qui contient les informations sur la page
++ * compressée.
++ * Lorsqu'une page est supprimée d'un bin, son champs size est mis à 0.
++ * Les entrées forment un chainage et on fusionne avec les éventuelles entrées
++ * libres précédentes et suivantes pour réduire la fragmentation lors de la
++ * libération d'une entrée.
++ * L'allocation des espaces compressés dans chaque bin se fait de manière
++ * similaire à celle expliquée dans cet article :
++ * http://jamesgolick.com/2013/5/15/memory-allocators-101.html
++ */
++typedef struct {
++    byte buffer[ZRLE_BIN_SIZE];
++} zrle_bin_t;
++
++/* Retient la correspondance entre une swap entry et une page compressée.
++ * Ces entrées précèdent les pages compressées dans les slots et sont utilisées
++ * dans l'arbre de recherche pour trouver rapidement la position d'une page
++ * compressée dans le cache.*/
++typedef struct __zrle_entry_t {
++    struct __zrle_entry_t *prev, *next;
++
++    swp_entry_t swap;
++    size_t size;        /* Sera égale à 0 sur un emplacement libre. */
++#ifdef ZRLE_DEBUG
++    u16 crc_page;       /* CRC-16 de la page non compressée. */
++    u16 crc_cache;      /* CRC-16 de la page compressée. */
++#endif
++} zrle_entry_t;
++
++static zrle_bin_t zrle_cache[ZRLE_BINS];
++
++/* Permet d'effectuer la correspondance entre une swp_entry_t et une page
++ * compressée. Stocke des pointeurs vers des zrle_entry_t. */
++RADIX_TREE(zrle_table, GFP_ATOMIC);
++
++/* Crée un verrou d'exclusion sur le ZRLE cache et l'arbre des entrées. */
++/* static DEFINE_SPINLOCK(__zrle_cache_lock); */
++
++/* Utilisé comme valeur de retour pour la fonction __zrle_alloc(). */
++typedef struct {
++    zrle_entry_t *entry;
++    int bin;
++} __zrle_alloc_t;
++
++static void __zrle_lock(void);
++static void __zrle_unlock(void);
++static __zrle_alloc_t __zrle_alloc(swp_entry_t swap, size_t size);
++static void __zrle_free(zrle_entry_t *entry);
++static size_t __entry_free_space(zrle_entry_t *entry, int bin);
++static byte *__entry_data(zrle_entry_t *entry);
++static bool __entry_is_free(const zrle_entry_t *entry);
++static size_t __bin_free_space(int bin);
++static void __compress_page(zrle_entry_t *entry, byte *page_data);
++static void __decompress_page(zrle_entry_t *entry, byte *page_data);
++
++static size_t zrle_size(byte *data, size_t ssize);
++static int zrle_unpack(byte *pack, size_t ssize, byte *data);
++static int zrle_pack(byte *data, size_t ssize, byte *pack);
++
++/* Tente d'ajouter la page au cache ZRLE. Retourne ZRLE_SUCCESS en cas de
++ * réussite, ZRLE_FAILED si la page n'a pu être rajoutée. */
++ZRLE_RET zrle_try_add(struct page *page)
++{
++    int ret;
++
++    byte *data;
++    size_t size;
++    swp_entry_t swap = { .val = page_private(page) };
++    __zrle_alloc_t allocated;
++    zrle_entry_t *entry;
++
++    int tree_err;
++
++    __zrle_lock();
++
++    data = kmap(page);
++
++    /* Vérifie que la taille compressée sera inférieure au seuil. */
++    size = zrle_size(data, PAGE_SIZE);
++    if (is_irradiated_swap(swap))
++        printk("zrle_size=%lu on %lx\n", (unsigned long) size, swap.val);
++    if (size * 100 / PAGE_SIZE > ZRLE_THRESHOLD) {
++        ret = ZRLE_FAILED;
++        goto unlock_kunmap;
++    }
++
++    /* Le noyau peut réallouer la page de swap à une autre page physique.
++     * On désalloue l'éventuelle ancienne page compressée avant de rajouter la
++     * nouvelle page. */
++    entry = radix_tree_delete(&zrle_table, swap.val);
++    if (entry != NULL)
++        __zrle_free(entry);
++
++    /* Tente de trouver un espace libre dans le ZRLE cache. */
++    allocated = __zrle_alloc(swap, size);
++    entry = allocated.entry;
++    if (entry == NULL) {
++        ret = ZRLE_FAILED;
++        goto unlock_kunmap;
++    }
++
++    set_page_writeback(page);
++
++    /* Ajoute à la table de correspondance et au cache. */
++    tree_err = radix_tree_insert(&zrle_table, swap.val, entry);
++    if (tree_err) {
++        printk("Error when allocating a tree node in the ZRLE table\n");
++        __zrle_free(entry);
++        ret = ZRLE_FAILED;
++        goto end_writeback;
++    }
++    __compress_page(entry, data);
++#ifdef ZRLE_DEBUG
++    entry->crc_page  = crc16(0, data, PAGE_SIZE);
++    entry->crc_cache = crc16(0, __entry_data(entry), entry->size);
++#endif
++    if (is_irradiated_swap(swap)) {
++        printk(
++            "%lx stored in %d, %lu bytes left\n", swap.val, allocated.bin,
++            (unsigned long) __bin_free_space(allocated.bin)
++        );
++    }
++
++    ret = ZRLE_SUCCESS;
++
++end_writeback:
++    end_page_writeback(page);
++
++unlock_kunmap:
++    kunmap(page);
++    __zrle_unlock();
++    return ret;
++}
++
++/* Tente de restaurer une page depuis le cache. Retourne ZRLE_SUCCESS en cas de
++ * réussite (la page n'est plus dans le cache), ZRLE_FAILED si la page n'a pu
++ * être trouvée. */
++ZRLE_RET zrle_try_retrieve(struct page *page)
++{
++    int ret;
++
++    swp_entry_t swap;
++    zrle_entry_t *entry;
++    byte *data;
++
++    __zrle_lock();
++
++    swap = (swp_entry_t) { .val = page_private(page) };
++
++    entry = radix_tree_delete(&zrle_table, swap.val);
++    if (entry == NULL) {
++        ret = ZRLE_FAILED;
++        goto unlock;
++    }
++
++    data = kmap(page);
++    __decompress_page(entry, data);
++#ifdef ZRLE_DEBUG
++    BUG_ON(crc16(0, data, PAGE_SIZE) != entry->crc_page);
++    BUG_ON(crc16(0, __entry_data(entry), entry->size) != entry->crc_cache);
++#endif
++    kunmap(page);
++
++    __zrle_free(entry);
++unlock:
++    __zrle_unlock();
++    return ret;
++}
++
++/* Verrouille le ZRLE cache. */
++static void __zrle_lock(void)
++{
++    /* Les verrous semblent causer un deadlock de temps en temps.
++     * Aucune idée de la raison ... */
++    /* spin_lock(&__zrle_cache_lock); */
++}
++
++/* Déverrouille le ZRLE cache. */
++static void __zrle_unlock(void)
++{
++    /* spin_unlock(&__zrle_cache_lock); */
++}
++
++/* Parcourt le chaînage de chaque bin pour chercher un espace suffisamment
++ * étendu pour contenir la page compressée. Retourne NULL si pas d'espace.
++ * Méthode du « first-fit ». */
++static __zrle_alloc_t __zrle_alloc(swp_entry_t swap, size_t size)
++{
++    int i;
++
++    for (i = 0; i < ZRLE_BINS; i++) {
++        zrle_entry_t *entry = (zrle_entry_t *) &(zrle_cache[i]);
++
++        do {
++            size_t free_space = __entry_free_space(entry, i);
++            if (free_space >= size) {
++                entry->swap = swap;
++                entry->size = size;
++
++                /* Rajoute une entrée vide à la suite des données compressées
++                 * pour le nouvel espace libre restant si l'espace est
++                 * suffisant pour contenir celle-ci.
++                 * Sinon, garde le lien vers l'entrée suivante, quitte à perdre
++                 * quelques octets. */
++                if (free_space > size + sizeof (zrle_entry_t)) {
++                    zrle_entry_t *next = (zrle_entry_t *) (
++                          (unsigned long) entry + sizeof (zrle_entry_t)
++                        + (unsigned long) size
++                    );
++
++                    /* Le radix tree du kernel impose des pointeurs alignés sur
++                     * deux octets. Il n'y aura pas d'overflow car free_space
++                     * fait au moins un octet de plus que la taille nécessaire.
++                     */
++                    next = (zrle_entry_t *) (
++                        (unsigned long) next + ((unsigned long) next & 1)
++                    );
++
++                    next->prev = entry;
++                    next->next = entry->next;
++                    next->size = 0;
++
++                    BUG_ON(
++                          ((unsigned long) next + sizeof (zrle_entry_t))
++                        > (unsigned long) &(zrle_cache[ZRLE_BINS])
++                    );
++
++                    entry->next = next;
++                }
++
++                BUG_ON(
++                      (  (unsigned long) entry + sizeof (zrle_entry_t)
++                       + (unsigned long) size)
++                    > (unsigned long) &(zrle_cache[ZRLE_BINS])
++                );
++
++                return (__zrle_alloc_t) { .entry = entry, .bin = i };
++            }
++
++            entry = entry->next;
++        } while (entry != NULL);
++    }
++
++    return (__zrle_alloc_t) { .entry = NULL, .bin = 0 };
++}
++
++/* Désalloue l'espace mémoire utilisé par une page compressée dans le cache
++ * en fusionnant l'entrée avec d'éventuelles entrées suivante et précédente
++ * vides. */
++static void __zrle_free(zrle_entry_t *entry)
++{
++    entry->size = 0;
++
++    if (entry->next != NULL && __entry_is_free(entry->next))
++        entry->next = entry->next->next;
++    if (entry->prev != NULL && __entry_is_free(entry->prev))
++        entry->prev->next = entry->next;
++}
++
++static size_t __entry_free_space(zrle_entry_t *entry, int bin)
++{
++    size_t ret;
++
++    if (!__entry_is_free(entry))
++        ret = 0;
++    else if (entry->next == NULL) {
++        /* Gère le cas du dernier enregistrement qui englobe tout le restant du
++         * bin en calculant l'espace libre jusqu'à la fin du bin. */
++        ret =   (unsigned long) &zrle_cache[bin + 1]
++              - (unsigned long) __entry_data(entry);
++
++        /* Si c'est le seul bloc, vérifie qu'il occupe tout l'espace. */
++        BUG_ON(
++               entry->prev == NULL
++            && ret != ZRLE_BIN_SIZE - sizeof (zrle_entry_t)
++        );
++    }
++    else {
++        ret =   (unsigned long) entry->next - (unsigned long) entry
++              - sizeof (zrle_entry_t);
++    }
++
++    /* Vérifie que ret n'est pas supérieur au plus grand espace possible. */
++    BUG_ON(ret > ZRLE_BIN_SIZE - sizeof (zrle_entry_t));
++    /* Vérifie la fin du bloc ne sort pas du conteneurs des bins. */
++    BUG_ON(
++          ((unsigned long) entry + sizeof (zrle_entry_t) + ret)
++        > (unsigned long) &(zrle_cache[ZRLE_BINS])
++    );
++
++    return ret;
++}
++
++/* Pointeur vers le premier octet des données compressées. */
++static byte *__entry_data(zrle_entry_t *entry)
++{
++    return (byte *) ((unsigned long) entry + sizeof (zrle_entry_t));
++}
++
++static bool __entry_is_free(const zrle_entry_t *entry)
++{
++    return entry->size == 0;
++}
++
++static size_t __bin_free_space(int bin)
++{
++    /* Pas réellement efficace, mais utilisé uniquement pour la page irradiée
++     * dans le printk() nécessaire à l'énoncé de ce travail. */
++
++    size_t free_space = 0;
++    zrle_entry_t *entry = (zrle_entry_t *) &(zrle_cache[bin]);
++    do {
++        free_space += __entry_free_space(entry, bin);
++        entry = entry->next;
++    } while (entry != NULL);
++
++    return free_space;
++}
++
++/* Compresse le contenu de la page à l'emplacement indiqué par le entry. */
++static void __compress_page(zrle_entry_t *entry, byte *page_data)
++{
++    zrle_pack(page_data, PAGE_SIZE, __entry_data(entry));
++}
++
++/* Extrait les données de la page compressée dans la page */
++static void __decompress_page(zrle_entry_t *entry, byte *page_data)
++{
++    zrle_unpack(__entry_data(entry), entry->size, page_data);
++}
++
++/***************************************************************************
++ ** A simple Zero-run-length encoding packing/unpacking library.
++ **  <packed_data>::=(<coded_data>|<coded_zeroes>)*
++ **  <coded_data>::=<N|0x80><byte 0><byte 1>...<byte N-1>
++ **  <coded_zeroes>::=<N>
++ **
++ **  both 0x80 and 0x00 are invalid codes and may only appear within the
++ **  <byte xx> payload of a <coded_data> chunk. I.e. for every <coded_xxx>
++ **  chunk, N is a number between 1 and 127.
++ **--------------------------------------------
++ ** (C) Sylvain Martin, ULg - 2013
++ ** public domain.
++ ***************************************************************************/
++
++
++#define assert(expr) \
++        if(unlikely(!(expr))) {                                   \
++        printk(KERN_ERR "Assertion failed! %s,%s,%s,line=%d\n", \
++        #expr, __FILE__, __func__, __LINE__);          \
++        }
++
++/** tells in advance the packed size of a page (input is ssize bytes).
++ **  do not attempt to pack at all 
++ **/
++size_t zrle_size(byte *data, size_t ssize) {
++  int nzeroes=0; // how many zeroes in a row?
++  int ndata=0,ldata=0; //how much data in a row ?
++  int psize=0; // the packed size
++  
++  while (ssize) {
++    if (*data++==0) {
++      nzeroes++;
++      if (ndata) {
++        psize++; // data run header.
++        ldata=ndata;
++        ndata=0;
++      }
++      if (nzeroes==127) {
++        psize++; //we'd produce a (nzeroes) code
++        nzeroes=0; ldata=0;
++      }
++    } else {
++      if (nzeroes>1) {
++        psize+=2; //we'd produce a (nzeroes) code, then (0x80|nbytes) code.
++      } else psize++; // we'd output the byte as is.
++      if (nzeroes==1 && (ldata==0 || ldata==126)) {
++        psize++; // we'd have a data run instead.
++        if (ldata==126) ldata=0;
++      }
++      ndata+=(nzeroes==1?ldata+1:0)+1;
++      nzeroes=0;
++      if (ndata>=127) {
++        psize++; // we'd produce a (ndata) code)
++        ndata=ndata-127; ldata=0;
++      }  
++  }
++    ssize--;
++  }
++  // if we have an unfinished zeroes run, we need its size stored.
++  // if we have an unfinished data run, we need to account for its header.
++  return psize+((ndata>0||nzeroes>0)?1:0);
++}
++
++/** unpack the buffer _pack into _data. You must provide your own 
++ **  unpack buffer, and make sure it can holds the original data.
++ **  ssize is the size of the packed data to be unpacked.
++ **/
++int zrle_unpack(byte *pack, size_t ssize, byte *data) {
++  byte *start=pack;
++  byte *dstart=data;
++  while (pack-start<ssize) {
++    if (*pack&0x80) {
++      // has data
++      int n=*pack++&0x7f;
++//       assert(n!=0);
++      memcpy(data,pack,n);
++      data+=n; pack+=n;
++    } else {
++      int n=*pack++;
++//       assert(n!=0);
++      memset(data,0,n);
++      data+=n;
++    }
++  }
++  return data-dstart;
++}
++
++/** packs the page _data into the buffer _pack. 
++ **  we have ssize bytes to pack in the page. We return the amount
++ **  of bytes generated.
++ **/
++int zrle_pack(byte *data, size_t ssize, byte *pack) {
++  int nzeroes=0;
++  int ndata=0;
++  byte* nextrun=NULL;
++  byte *start=pack;
++
++  while (ssize--) {
++    if (*data==0) {
++      nzeroes++;
++      if (ndata) { *nextrun=ndata|0x80; ndata=0; }
++      if (nzeroes==127) {
++        *pack++=nzeroes;
++        nzeroes=0; nextrun=0;
++      }
++    } else {
++      if (nzeroes>1) {
++        // close a zeroes run
++        *pack++=nzeroes;
++        nextrun=pack++; // skip a byte for run length.
++        nzeroes=0;
++      } else {
++        if (!nextrun) { nextrun=pack++; *nextrun=0;}
++        if (nzeroes==1) {
++          if ((*nextrun&0x7f)==126) { nextrun=pack++; *nextrun=0;}
++          // integrates a single zero
++          *pack++=0;
++          nzeroes=0;
++          ndata=(*nextrun&0x7f)+1;
++        }
++      }
++      *pack++=*data;
++      if (++ndata>=127) {*nextrun=(ndata&0x7f)|0x80; ndata-=127; nextrun=0; }
++    }
++    data++;
++  }
++  if (nzeroes) { *pack++=nzeroes; }
++  else { if (ndata) *nextrun=ndata|0x80; }
++  return pack-start;
++}
