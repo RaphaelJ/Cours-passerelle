@@ -1,0 +1,23 @@
+The three directories (c, haskell and java) contain the sources for the three
+implementations.
+
+Each directories contains a compile.sh file which contains the command to
+compile the executable.
+
+The script used to benchmark each method for each implementation is named
+bench.sh.
+
+The usage for the C sequential implementation is :
+./life <board size>
+
+The usage for the Haskell implementation is :
+./Life +RTS -N<# of threads> -A15m
+
+The usage for the Java implementation is :
+java Life <board size> <# of threads>
+
+The Java's sequential generator is only executed if <# of threads> is one.
+The Java's block generator is only executed if <# of threads> is a square
+(1, 4, 9, 16, etc).
+The Java's one-thread-per-cell generator is only executed if <board size> is
+lesser that 50.

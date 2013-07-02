@@ -13,16 +13,16 @@ main = defaultMain [
     , bench "576"   $ whnfIO $ computeUnboxedP $ nextGen board576
     , bench "1008"  $ whnfIO $ computeUnboxedP $ nextGen board1008
     , bench "2592"  $ whnfIO $ computeUnboxedP $ nextGen board2592
-    , bench "5040"  $ whnfIO $ computeUnboxedP $ nextGen board5040
-    , bench "10080" $ whnfIO $ computeUnboxedP $ nextGen board10080
+    -- , bench "5040"  $ whnfIO $ computeUnboxedP $ nextGen board5040
+    --, bench "10080" $ whnfIO $ computeUnboxedP $ nextGen board10080
     ]
   where
     !board144   = randBoard 144
     !board576   = randBoard 576
     !board1008  = randBoard 1008
     !board2592  = randBoard 2592
-    !board5040  = randBoard 5040
-    !board10080 = randBoard 10080
+    -- !board5040  = randBoard 5040
+    -- !board10080 = randBoard 10080
 
     -- Initialises a board randomly.
     randBoard :: Int -> Board U

@@ -1,0 +1,77 @@
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[babel=true]{csquotes}
+\usepackage{graphicx}
+\usepackage{multirow}
+
+\pagestyle{headings}
+
+\title{Programming techniques : Project 4}
+\author{Raphaël Javaux and Marien Bourguignon}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+   \section{Queue management}
+
+    \paragraph{}Queuing is done as follow :
+    \begin{itemize}
+        \item If the shower is empty, then anybody can go inside without any
+        queuing ;
+        \item If the showed is used by someone of the opposite sex, then the
+        person will wait until the shower is empty ;
+        \item If the shower is used by someone of the same sex and if there is
+        nobody of the opposite sex waiting outside, then the person is allowed 
+        to immediately join the shower ;
+        \item If the shower is used by someone of the same sex but if there is 
+        at least one person of the opposite sex waiting outside, then the person
+        will be en-queued after people of the opposite sex.
+    \end{itemize}
+    The last condition is there to ensure that someone of sex A who arrives
+    after someone of sex B doesn't bypass this last, avoiding any
+    starvation, while other rules enforce mutual exclusion.\newline
+    Once the shower is empty again, every person of the opposite sex, if any, is
+    allowed to enter the shower. Waking up a group of people is done using a
+    conditional variable.
+
+    \paragraph{}\textbf{We can easily prove that our queuing algorithm doesn't
+    give any way for a person to be kept in the queue for more than the double
+    of the shower length time.}
+
+  \section{Results}
+
+    \paragraph{}We've tested our queuing algorithm of two different ordering.
+
+    \paragraph{}In the first case, both sexes are already grouped in two
+    distinct groups, without any interlacing. This is the best case of our
+    algorithm as there will only be two shower sessions. As expected, the first
+    group of people doesn't wait to enter as a whole in the shower while the
+    second group must wait until the last person of the first group has leaved
+    the shower. \textbf{Giving $N$ people of sex $A$ and $M$ people of sex $B$,
+    the average waiting time will be $\frac{M}{N + M}$ times the defined shower
+    length time} as only people of group $B$ will have to wait outside the shower.
+
+    \paragraph{}In the second test case, people enter the shower in a shuffled
+    ordering. This is not far away from the worst case scenario of our algorithm
+    as the first person of sex B will prohibit anybody of sex A to enter the shower,
+    even if the shower is currently used by someone of sex A. Thus there will be
+    three shower sessions. \textbf{Giving $N$ people of sex $A$ and $M$ people
+    of sex $B$, the worst average waiting time is given by the following
+    formula :}
+
+    \[
+        max\left(\frac{M + 2(N - 1)}{N + M}, \frac{N + 2(M - 1)}{N + M}\right)
+    \]
+    as in this scenario, only one person of either group A or group B
+    will be allowed to enter the shower without waiting (because of being
+    immediately followed by a person of the opposite group) whereas every
+    remaining person of his group will have to wait for two shower length
+    times.\newline
+    \textbf{Experiments confirm this theory by giving an average waiting time of
+    between 1.35 and 1.46 time the shower length time} while the theoretical
+    maximum of the preceding formula is 1.5 for the same values of $N$ and $M$.
+
+\end{document}
